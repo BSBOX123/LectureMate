@@ -121,6 +121,12 @@
      &nbsp;  
      }
 
+5. **실시간 오디오 청크 STT 프리뷰 (WebSocket, Spring Boot \-\> FastAPI)**  
+   * `WS /ai/v1/lectures/{lecture_id}/audio-stream`  
+   * 강의 녹음 세션당 1개 연결을 유지 (Spring Boot가 클라이언트 WS 세션 시작 시 연결, 녹음 종료 시 해제)  
+   * Spring Boot \-\> FastAPI: 클라이언트에서 받은 Binary Audio Chunks를 그대로 전달 (§2.1-2와 동일 포맷)  
+   * FastAPI \-\> Spring Boot: §2.1-2의 `TRANSCRIPT_PREVIEW` JSON 이벤트와 동일한 포맷 (Spring Boot는 클라이언트로 그대로 중계)
+
 # **3\. Data Model & DB Schema (PostgreSQL 16 \+ pgvector)**
 
 CREATE EXTENSION IF NOT EXISTS vector;

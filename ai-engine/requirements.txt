@@ -1,0 +1,28 @@
+# Web
+fastapi==0.141.1
+uvicorn[standard]==0.53.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+
+# Database (PostgreSQL 16 + pgvector)
+sqlalchemy[asyncio]==2.0.54
+asyncpg==0.31.0
+pgvector==0.5.0
+
+# PDF
+pymupdf==1.28.2
+
+# STT
+faster-whisper==1.2.1
+
+# Embedding (BAAI/bge-m3)
+torch==2.14.0
+sentence-transformers==6.1.0
+
+# LLM (Ollama / vLLM OpenAI 호환 API) 및 Webhook HTTP 클라이언트
+openai==3.16.2
+httpx==0.28.1
+
+# Test
+pytest==9.1.1
+pytest-asyncio==1.4.0
