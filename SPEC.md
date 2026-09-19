@@ -4,7 +4,7 @@
 
 * **Active Scope:** Fullstack (Spring Boot 메인 백엔드 \+ FastAPI AI 추론 워커 \+ Next.js 웹 프론트엔드 \+ PostgreSQL/pgvector 단일 DB)  
 * **Tech Stack:**  
-  * **Main Backend:** Java 21, Spring Boot 3.3.x, Spring Data JPA, Spring Security, JWT, Spring WebSocket, Spring RestClient  
+  * **Main Backend:** Java 21, Spring Boot 4.1.x, Spring Data JPA, Spring Security, JWT, Spring WebSocket, Spring RestClient  
   * **AI Engine:** Python 3.11+, FastAPI, PyMuPDF (fitz), Faster-Whisper, PyTorch, vLLM / Ollama (Qwen2.5-14B-Instruct / Llama-3.1-8B), BAAI/bge-m3  
   * **Database:** PostgreSQL 16 \+ pgvector 확장 (관계형 데이터와 벡터 데이터 단일 통합 관리)  
   * **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS, PDF.js, Canvas Overlay (Fabric.js), Web Audio API / MediaRecorder
@@ -414,7 +414,7 @@ CREATE INDEX idx\_annotations\_lecture\_page ON slide\_annotations(lecture\_id, 
 * **Spring Boot (`application.yml`)**  
   * `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/lecturemate`  
   * `FASTAPI_ENGINE_URL=http://localhost:8000`  
-  * `STORAGE_LOCAL_PATH=/data/lecturemate/storage`  
+  * `STORAGE_LOCAL_PATH=/data/lecturemate/storage` (서버 배포 기준. 로컬 개발 기본값은 `~/lecturemate/storage`)
 * **FastAPI (`.env`)**  
   * `DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/lecturemate`  
   * `SPRING_BOOT_WEBHOOK_URL=http://localhost:8080/internal/v1`  

@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: server-core
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lecturemate}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+  servlet:
+    multipart:
+      # 강의 PDF 업로드 (POST /api/v1/lectures). 요청 전체는 title 등 다른 파트를 고려해 여유를 둔다.
+      max-file-size: 50MB
+      max-request-size: 55MB
+  jpa:
+    # 스키마는 db/init.sql 이 관리한다. Hibernate 는 엔티티 매핑이 스키마와 맞는지 검증만 한다.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+server:
+  port: 8080
+
+lecturemate:
+  fastapi:
+    base-url: ${FASTAPI_ENGINE_URL:http://localhost:8000}
+    connect-timeout: 5s
+    read-timeout: 120s
+  storage:
+    local-path: ${STORAGE_LOCAL_PATH:${user.home}/lecturemate/storage}

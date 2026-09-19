@@ -16,7 +16,7 @@
 - Run: `./gradlew bootRun`
 - Test: `./gradlew test`
 - Build: `./gradlew build`
-- Style: Java 21, Spring Boot 3.3.x, Google Java Style 준수
+- Style: Java 21, Spring Boot 4.1.x, Google Java Style 준수
 
 ### 2. Frontend (Next.js / TypeScript)
 - Working Directory: `./web-client`
@@ -29,6 +29,10 @@
 - Run: `source .venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port 8000 --reload`
 - Test: `pytest`
 - Style: Python 3.11+, PEP8 준수, Type Hinting 필수, Pydantic v2 사용
+
+## Progress Documentation
+- 모든 작업마다 `docs/progress/`에 진행 기록을 남길 것 (구현 기능, 코드 설명, 엔티티/모듈 관계, 결정 이유, 트러블슈팅).
+- 작업 후 `docs/progress/README.md`의 진행 현황, 결정 기록, 미결 질문을 갱신할 것.
 
 ## Safety Rules
 - `/data/raw/` 경로의 원본 데이터 파일은 절대 수정/삭제하지 말 것.
