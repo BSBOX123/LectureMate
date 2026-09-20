@@ -1,14 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 
 /** 로그인 화면 (SPEC §2.1-7). */
 export default function LoginPage() {
+  // useSearchParams 를 쓰려면 Suspense 경계가 필요하다
+  return (
+    <Suspense fallback={<main className="flex-1" />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
+  // 라우트 가드가 넘겨준 원래 목적지 (없으면 홈)
+  const next = searchParams.get("next") ?? "/";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +32,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(email, password);
-      router.push("/");
+      router.push(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "로그인에 실패했습니다.");
     } finally {

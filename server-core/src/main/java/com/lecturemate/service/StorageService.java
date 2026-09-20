@@ -39,6 +39,18 @@ public class StorageService {
     return target;
   }
 
+  /** 강의에 딸린 파일(PDF, 오디오, 녹음 임시본)을 모두 지운다 (SPEC §2.1-13). */
+  public void deleteLectureFiles(Long lectureId) {
+    for (Path path : new Path[] {pdfPath(lectureId), audioPath(lectureId), pcmPath(lectureId)}) {
+      try {
+        Files.deleteIfExists(path);
+      } catch (IOException e) {
+        // 파일이 남아도 강의 삭제 자체는 진행한다
+        throw new StorageException("파일을 삭제하지 못했습니다: " + path, e);
+      }
+    }
+  }
+
   /** 녹음 중 PCM 을 이어붙일 임시 파일 (16bit LE, 모노). */
   public OutputStream openPcmSink(Long lectureId) {
     Path target = pcmPath(lectureId);

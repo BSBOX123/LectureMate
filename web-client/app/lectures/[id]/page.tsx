@@ -3,7 +3,11 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { lectureApi } from "@/lib/api";
-import type { LectureResponse, PageAnnotationResponse } from "@/types/api";
+import type {
+  LectureResponse,
+  PageAnnotationResponse,
+  SlideTimelineResponse,
+} from "@/types/api";
 import AnnotationOverlay from "@/components/AnnotationOverlay";
 import AudioRecorder from "@/components/AudioRecorder";
 import LectureChatPanel from "@/components/LectureChatPanel";
@@ -34,6 +38,7 @@ export default function LectureDashboardPage() {
   const [recording, setRecording] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [annotation, setAnnotation] = useState<PageAnnotationResponse | null>(null);
+  const [timeline, setTimeline] = useState<SlideTimelineResponse[]>([]);
 
   useEffect(() => {
     if (!Number.isFinite(lectureId)) {
@@ -64,6 +69,29 @@ export default function LectureDashboardPage() {
     const timer = setInterval(() => setReloadKey((key) => key + 1), 2000);
     return () => clearInterval(timer);
   }, [lecture?.status, recording]);
+
+  // 슬라이드별 발화 분량과 시험 힌트 (분석 전이면 빈 배열)
+  useEffect(() => {
+    if (!Number.isFinite(lectureId)) {
+      return;
+    }
+    let cancelled = false;
+    void lectureApi
+      .timeline(lectureId)
+      .then((loaded) => {
+        if (!cancelled) {
+          setTimeline(loaded);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setTimeline([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lectureId, lecture?.status, reloadKey]);
 
   // 현재 슬라이드의 자동 필기 (분석 전이면 404 → null)
   useEffect(() => {
@@ -115,6 +143,25 @@ export default function LectureDashboardPage() {
             <span className="ml-2 text-xs font-normal text-zinc-500">{lecture.status}</span>
           )}
         </h1>
+        {lecture?.status === "FAILED" && (
+          <button
+            type="button"
+            className="rounded border border-red-300 bg-red-50 px-3 py-1 text-sm text-red-700"
+            onClick={() => {
+              setAnalyzeError(null);
+              void lectureApi
+                .retry(lectureId)
+                .then(() => setReloadKey((key) => key + 1))
+                .catch((cause: unknown) =>
+                  setAnalyzeError(
+                    cause instanceof Error ? cause.message : "다시 시도하지 못했습니다.",
+                  ),
+                );
+            }}
+          >
+            분석 다시 시도
+          </button>
+        )}
         {lecture?.audioUrl && lecture.status === "READY" && (
           <button
             type="button"
@@ -147,7 +194,7 @@ export default function LectureDashboardPage() {
       <main className="grid flex-1 grid-cols-[12rem_1fr_22rem] gap-2 overflow-hidden p-2">
         <SlideTimeline
           totalPages={totalPages}
-          items={[]}
+          items={timeline}
           currentPage={currentPage}
           onSelectPage={setCurrentPage}
         />

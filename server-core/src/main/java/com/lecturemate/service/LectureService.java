@@ -2,14 +2,18 @@ package com.lecturemate.service;
 
 import com.lecturemate.api.dto.LectureResponse;
 import com.lecturemate.api.dto.PageAnnotationResponse;
+import com.lecturemate.api.dto.SlideTimelineItem;
 import com.lecturemate.domain.entity.Lecture;
 import com.lecturemate.domain.entity.LectureStatus;
 import com.lecturemate.domain.entity.User;
 import com.lecturemate.repository.LectureRepository;
+import com.lecturemate.repository.LectureSlideRepository;
+import com.lecturemate.repository.LectureTranscriptRepository;
 import com.lecturemate.repository.SlideAnnotationRepository;
 import com.lecturemate.repository.UserRepository;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +27,8 @@ public class LectureService {
 
   private final LectureRepository lectureRepository;
   private final SlideAnnotationRepository slideAnnotationRepository;
+  private final LectureTranscriptRepository lectureTranscriptRepository;
+  private final LectureSlideRepository lectureSlideRepository;
   private final UserRepository userRepository;
   private final StorageService storageService;
   private final ApplicationEventPublisher eventPublisher;
@@ -30,11 +36,15 @@ public class LectureService {
   public LectureService(
       LectureRepository lectureRepository,
       SlideAnnotationRepository slideAnnotationRepository,
+      LectureTranscriptRepository lectureTranscriptRepository,
+      LectureSlideRepository lectureSlideRepository,
       UserRepository userRepository,
       StorageService storageService,
       ApplicationEventPublisher eventPublisher) {
     this.lectureRepository = lectureRepository;
     this.slideAnnotationRepository = slideAnnotationRepository;
+    this.lectureTranscriptRepository = lectureTranscriptRepository;
+    this.lectureSlideRepository = lectureSlideRepository;
     this.userRepository = userRepository;
     this.storageService = storageService;
     this.eventPublisher = eventPublisher;
@@ -83,6 +93,22 @@ public class LectureService {
                     HttpStatus.NOT_FOUND, "해당 슬라이드의 자동 필기가 아직 없습니다."));
   }
 
+  /** 슬라이드별 발화 분량과 시험 힌트 유무 (SPEC §2.1-12). */
+  @Transactional(readOnly = true)
+  public List<SlideTimelineItem> findTimeline(Long userId, Long lectureId) {
+    findOwned(userId, lectureId); // 소유자가 아니면 404
+    Set<Integer> pagesWithHints =
+        Set.copyOf(slideAnnotationRepository.findPagesWithExamHints(lectureId));
+    return lectureTranscriptRepository.findSpeechDurations(lectureId).stream()
+        .map(
+            row ->
+                new SlideTimelineItem(
+                    row.getPageNumber(),
+                    row.getSpeechDurationMs(),
+                    pagesWithHints.contains(row.getPageNumber())))
+        .toList();
+  }
+
   @Transactional(readOnly = true)
   public List<LectureResponse> findAllOwned(Long userId) {
     return lectureRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
@@ -122,6 +148,48 @@ public class LectureService {
               lecture.attachAudio(audioUrl);
               lecture.changeStatus(LectureStatus.READY);
             });
+  }
+
+  /** 강의와 파일을 삭제한다 (SPEC §2.1-13). 하위 데이터는 DB 의 ON DELETE CASCADE 가 지운다. */
+  @Transactional
+  public void delete(Long userId, Long lectureId) {
+    Lecture lecture =
+        lectureRepository
+            .findByIdAndUserId(lectureId, userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    storageService.deleteLectureFiles(lectureId);
+    lectureRepository.delete(lecture);
+  }
+
+  /**
+   * 실패한 강의의 분석을 다시 시도한다 (SPEC §2.1-14).
+   *
+   * <p>슬라이드가 없으면 PDF 파싱부터, 있으면 오디오 정밀 분석을 다시 돌린다.
+   */
+  @Transactional
+  public LectureResponse retry(Long userId, Long lectureId) {
+    Lecture lecture =
+        lectureRepository
+            .findByIdAndUserId(lectureId, userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    if (lecture.getStatus() != LectureStatus.FAILED) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "실패한 강의만 다시 시도할 수 있습니다.");
+    }
+
+    boolean hasSlides = lectureSlideRepository.existsByLectureId(lectureId);
+    if (!hasSlides) {
+      lecture.changeStatus(LectureStatus.PROCESSING);
+      eventPublisher.publishEvent(
+          new PdfUploadedEvent(lectureId, storageService.pdfPath(lectureId).toString()));
+    } else {
+      Path audioPath = storageService.audioPath(lectureId);
+      if (lecture.getAudioUrl() == null || !java.nio.file.Files.isReadable(audioPath)) {
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "다시 시도할 녹음이 없습니다.");
+      }
+      lecture.changeStatus(LectureStatus.ANALYZING);
+      eventPublisher.publishEvent(new RecordingFinishedEvent(lectureId, audioPath.toString()));
+    }
+    return LectureResponse.from(lecture);
   }
 
   @Transactional

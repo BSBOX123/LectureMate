@@ -59,6 +59,13 @@ export interface ChatRequest {
   question: string;
 }
 
+/** §2.1-12 슬라이드 타임라인 항목 */
+export interface SlideTimelineResponse {
+  pageNumber: number;
+  speechDurationMs: number;
+  hasExamHint: boolean;
+}
+
 /** §2.1-5 citations 이벤트의 근거 한 건 */
 export interface Citation {
   source: "SLIDE" | "TRANSCRIPT";

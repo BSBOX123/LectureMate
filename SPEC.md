@@ -128,7 +128,17 @@
 11. **강의 목록 / 메타데이터 조회**  
     * `GET /api/v1/lectures` → `[{ "lectureId": 101, "title": "...", "status": "READY", "pdfUrl": "/files/pdf/101.pdf", "audioUrl": "/files/audio/101.wav" }, ...]` (본인 강의만, 최신순. 녹음 전이면 `audioUrl` 은 null)  
     * `GET /api/v1/lectures/{lectureId}` → 위 항목과 동일한 형식. 본인 강의가 아니면 404  
-12. **업로드된 PDF 내려받기**  
+12. **슬라이드 타임라인 조회**  
+    * `GET /api/v1/lectures/{lectureId}/timeline`  
+    * Response (200 OK): `[ { "pageNumber": 5, "speechDurationMs": 184000, "hasExamHint": true }, ... ]`  
+    * 슬라이드별로 매칭된 발화의 총 길이와 시험 힌트 유무. 발화가 매칭된 페이지만 포함한다 (§4.3 `SlideTimeline` 용)  
+13. **강의 삭제**  
+    * `DELETE /api/v1/lectures/{lectureId}` → 204 No Content  
+    * 강의와 하위 데이터(슬라이드/전사/필기)를 삭제하고 저장된 PDF·오디오 파일도 지운다. 본인 강의가 아니면 404  
+14. **분석 재시도**  
+    * `POST /api/v1/lectures/{lectureId}/retry` → 202 Accepted, §2.1-1 과 동일한 강의 응답  
+    * `status=FAILED` 일 때만 허용(아니면 409). 슬라이드가 없으면 PDF 파싱부터, 있으면 오디오 정밀 분석을 다시 시도한다  
+15. **업로드된 PDF 내려받기**  
     * `GET /files/pdf/{lectureId}.pdf`  
     * Request Header: `Authorization: Bearer {accessToken}`. 본인 강의가 아니면 404  
     * Response: `application/pdf`

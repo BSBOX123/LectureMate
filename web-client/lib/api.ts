@@ -4,6 +4,7 @@ import type {
   LectureResponse,
   PageAnnotationResponse,
   RecordingFinishResponse,
+  SlideTimelineResponse,
 } from "@/types/api";
 import type {
   LoginRequest,
@@ -176,6 +177,18 @@ export const lectureApi = {
       }
     }
   },
+
+  /** §2.1-12 슬라이드별 발화 분량과 시험 힌트 유무 */
+  timeline: (lectureId: number) =>
+    request<SlideTimelineResponse[]>(`/api/v1/lectures/${lectureId}/timeline`),
+
+  /** §2.1-13 강의 삭제 (파일 포함) */
+  remove: (lectureId: number) =>
+    request<void>(`/api/v1/lectures/${lectureId}`, { method: "DELETE" }),
+
+  /** §2.1-14 실패한 분석 재시도 */
+  retry: (lectureId: number) =>
+    request<LectureResponse>(`/api/v1/lectures/${lectureId}/retry`, { method: "POST" }),
 
   /** §2.1-4 슬라이드 자동 필기. 분석 전이면 404 */
   annotations: (lectureId: number, pageNumber: number) =>

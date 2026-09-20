@@ -20,7 +20,8 @@
 | 12 | 자동 필기 생성 (LLM) + 주석 조회 API | 완료 | `308eb45` | [step-12-annotations.md](step-12-annotations.md) |
 | 13 | RAG 질의응답 (하이브리드 검색 + SSE) | 완료 | `d6a6ff6` | [step-13-rag-chat.md](step-13-rag-chat.md) |
 | 14 | 배포 준비 (Docker 이미지, Nginx, CI) | 완료 | `f793455` | [step-14-deployment.md](step-14-deployment.md) |
-| 15 | 데스크톱 실행 앱 (서비스 일괄 시작/중지) | 완료 (검토 대기) | - | [step-15-launcher.md](step-15-launcher.md) |
+| 15 | 데스크톱 실행 앱 (서비스 일괄 시작/중지) | 완료 | `4f7f901` | [step-15-launcher.md](step-15-launcher.md) |
+| 16 | 화면 다듬기 (가드·타임라인·삭제·재시도) | 완료 (검토 대기) | - | [step-16-ui-polish.md](step-16-ui-polish.md) |
 
 > GitHub: [BSBOX123/LectureMate](https://github.com/BSBOX123/LectureMate) — main 푸시 완료, CI 3개 잡 통과
 
@@ -72,6 +73,9 @@
 | 2026-09-20 | EC2 보안 그룹 SSH 22번: 0.0.0.0/0 → 내 IP(/32) | 전 세계 개방 상태였음. 자동화된 공격 시도 차단 | Step 14 |
 | 2026-09-20 | **EC2 인스턴스(t3.micro) 종료(삭제)** | A안 확정으로 당분간 불필요. 필요하면 다시 만들면 됨 | Step 14 |
 | 2026-09-20 | 실행은 Desktop 아이콘(AppleScript 앱)으로 | 터미널 4개를 여는 대신 아이콘 하나로 전체 기동 + 브라우저 열기 | Step 15 |
+| 2026-09-20 | 로그인 가드는 `/lectures` 레이아웃 한 곳에 | 페이지마다 검사하면 새 화면에서 빠뜨리기 쉬움 | Step 16 |
+| 2026-09-20 | SPEC §2.1-12/13/14 신설 (타임라인·삭제·재시도) | 화면에 필요한데 명세에 없던 API | Step 16 |
+| 2026-09-20 | 삭제 시 하위 데이터는 DB CASCADE 에 맡김 | 스키마에 이미 있는 제약. 애플리케이션 중복 삭제 불필요 | Step 16 |
 
 ## 미결 질문
 
@@ -82,17 +86,17 @@
 - [ ] SPEC §4.1에 `LectureTranscriptRepository`가 없음. 필요 여부 (기능 구현 단계에서 결정)
 - [x] ~~인증 API SPEC 정의~~ → §2.1-6 ~ §2.1-10 추가 완료
 - [x] ~~원본 파일 저장 전략~~ → 현행 유지, 앱 확장 시 D안 재검토
-- [ ] `SlideTimeline`의 데이터(슬라이드별 발화 분량, 시험 힌트 유무)를 가져올 API가 SPEC §2.1에 없음 (Step 4, 12)
+- [x] ~~`SlideTimeline` 데이터 API~~ → SPEC §2.1-12 신설 및 구현 (Step 16)
 - [x] ~~§2.1-5 채팅 SSE 이벤트 형식~~ → citations/token/done 정의 및 구현 (Step 13)
 - [x] ~~프론트엔드 API 주소 환경 변수와 CORS~~ → `NEXT_PUBLIC_API_BASE_URL`, `WEB_CLIENT_ORIGIN` (Step 5)
 - [x] ~~강의 목록과 PDF 업로드 화면~~ → `/lectures`, `/lectures/new` 추가, SPEC §2.1-11·12 반영 (Step 6)
 - [x] ~~`/ws/v1/**` WebSocket 인증 방식~~ → 쿼리 파라미터 토큰 + 핸들러 검증 (Step 9)
-- [ ] 로그인 상태가 아닐 때 `/lectures/[id]` 접근 차단(라우트 가드) 미구현 (Step 5)
+- [x] ~~로그인 라우트 가드~~ → `/lectures` 레이아웃에서 처리 (Step 16)
 - [x] ~~`ai-engine`에 `INTERNAL_API_SECRET` 반영~~ → Webhook 호출에 적용 (Step 10)
 - [x] ~~DB 스키마 변경 방식~~ → Flyway 도입 완료 (Step 8)
 - [x] ~~`PdfViewer` PDF 렌더링~~ → PDF.js 적용 완료 (Step 7)
-- [ ] 강의 삭제 API와 파일 정리 정책이 없음 (Step 6)
-- [ ] 업로드 실패(FAILED) 시 재시도 방법이 없음 (Step 6)
+- [x] ~~강의 삭제 API~~ → SPEC §2.1-13 신설, 파일까지 삭제 (Step 16)
+- [x] ~~실패 시 재시도~~ → SPEC §2.1-14 신설, 실패 지점에 따라 자동 분기 (Step 16)
 - [ ] 브라우저 e2e 스크립트를 저장소에 포함할지 (스크래치패드가 정리되어 현재는 없음) (Step 7)
 - [x] ~~배포 설계~~ → GPU EC2 1대 구성, Dockerfile/compose/Nginx/CI 준비 완료 (Step 14)
 - [ ] EC2 에서 `ai-engine` CUDA 이미지 첫 빌드·GPU 인식 검증 (GPU 인스턴스 확보 후) (Step 14)
@@ -107,7 +111,7 @@
 - [ ] 배치 작업 진행 상태 조회 수단 없음 (task_id 추적 안 함) (Step 10)
 - [ ] 정렬 품질 평가 수단 없음. 전환 패널티(0.05)는 실제 강의 데이터로 조정 필요 (Step 11)
 - [ ] 슬라이드 45장이면 LLM 호출도 45번(로컬 7B 약 13분). 병렬화/진행률 표시 검토 (Step 12)
-- [ ] 시험 힌트가 잘 안 잡힘 — 프롬프트 조정 여지 (Step 12)
+- [ ] 시험 힌트가 잘 안 잡힘 — 프롬프트 조정 여지 (Step 12, 16에서도 미표시 확인)
 - [ ] 채팅이 이전 질문 맥락을 이어받지 않음 (매 질문 독립) (Step 13)
 - [ ] 같은 쪽 발화가 여러 건이면 출처 뱃지가 중복 표시됨 (Step 13)
 - [ ] RAG 검색 품질 평가 수단 없음 (top_k=5 고정) (Step 13)

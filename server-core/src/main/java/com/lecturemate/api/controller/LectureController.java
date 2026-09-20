@@ -2,6 +2,7 @@ package com.lecturemate.api.controller;
 
 import com.lecturemate.api.dto.LectureResponse;
 import com.lecturemate.api.dto.PageAnnotationResponse;
+import com.lecturemate.api.dto.SlideTimelineItem;
 import com.lecturemate.api.dto.RecordingFinishResponse;
 import com.lecturemate.service.LectureService;
 import jakarta.validation.constraints.NotBlank;
@@ -12,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -66,6 +68,27 @@ public class LectureController {
       @PathVariable Long lectureId,
       @PathVariable int pageNumber) {
     return lectureService.findAnnotation(userId(jwt), lectureId, pageNumber);
+  }
+
+  /** 강의 삭제 (SPEC §2.1-13). */
+  @DeleteMapping("/{lectureId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void delete(@AuthenticationPrincipal Jwt jwt, @PathVariable Long lectureId) {
+    lectureService.delete(userId(jwt), lectureId);
+  }
+
+  /** 분석 재시도 (SPEC §2.1-14). */
+  @PostMapping("/{lectureId}/retry")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  public LectureResponse retry(@AuthenticationPrincipal Jwt jwt, @PathVariable Long lectureId) {
+    return lectureService.retry(userId(jwt), lectureId);
+  }
+
+  /** 슬라이드 타임라인 (SPEC §2.1-12). */
+  @GetMapping("/{lectureId}/timeline")
+  public List<SlideTimelineItem> timeline(
+      @AuthenticationPrincipal Jwt jwt, @PathVariable Long lectureId) {
+    return lectureService.findTimeline(userId(jwt), lectureId);
   }
 
   @GetMapping
