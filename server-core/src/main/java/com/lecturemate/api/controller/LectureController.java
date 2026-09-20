@@ -1,6 +1,7 @@
 package com.lecturemate.api.controller;
 
 import com.lecturemate.api.dto.LectureResponse;
+import com.lecturemate.api.dto.PageAnnotationResponse;
 import com.lecturemate.api.dto.RecordingFinishResponse;
 import com.lecturemate.service.LectureService;
 import jakarta.validation.constraints.NotBlank;
@@ -56,6 +57,15 @@ public class LectureController {
   @GetMapping("/{lectureId}")
   public LectureResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable Long lectureId) {
     return lectureService.findOwned(userId(jwt), lectureId);
+  }
+
+  /** 슬라이드 및 자동 필기 데이터 조회 (SPEC §2.1-4). */
+  @GetMapping("/{lectureId}/pages/{pageNumber}/annotations")
+  public PageAnnotationResponse annotations(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable Long lectureId,
+      @PathVariable int pageNumber) {
+    return lectureService.findAnnotation(userId(jwt), lectureId, pageNumber);
   }
 
   @GetMapping

@@ -16,7 +16,8 @@
 | 8 | Flyway 도입 (DB 마이그레이션) | 완료 | `85bb4ec` | [step-8-flyway.md](step-8-flyway.md) |
 | 9 | 녹음 + 실시간 자막 (WebSocket + Whisper) | 완료 | `ba67ee8` | [step-9-recording.md](step-9-recording.md) |
 | 10 | 배치 정밀 전사 (녹음 종료 → 분석 → 완료 Webhook) | 완료 | `5db8473` | [step-10-batch-transcription.md](step-10-batch-transcription.md) |
-| 11 | 슬라이드-음성 정렬 (Monotonic DP), 임베딩 활성화 | 완료 (검토 대기) | - | [step-11-alignment.md](step-11-alignment.md) |
+| 11 | 슬라이드-음성 정렬 (Monotonic DP), 임베딩 활성화 | 완료 | `c3dc8c8` | [step-11-alignment.md](step-11-alignment.md) |
+| 12 | 자동 필기 생성 (LLM) + 주석 조회 API | 완료 (검토 대기) | - | [step-12-annotations.md](step-12-annotations.md) |
 
 ## 주요 결정 기록
 
@@ -53,6 +54,8 @@
 | 2026-09-20 | 완료 통보는 Webhook, 값은 임시 의미 (`totalPagesAnalyzed=0`) | 정렬/필기 미구현 구간. SPEC §2.2 에 주석 명시 | Step 10 |
 | 2026-09-20 | `EMBEDDING_ENABLED` 기본값 false → **true** | 정렬과 RAG 에 임베딩이 필수. 테스트에서는 conftest 로 비활성 유지 | Step 11 |
 | 2026-09-20 | 정렬은 단조성 제약 DP + 전환 패널티 0.05 | 강의는 슬라이드를 되돌아가지 않음. 유사도만 쓰면 문장마다 페이지가 튐 | Step 11 |
+| 2026-09-20 | **Mac 로컬 LLM 은 네이티브 Ollama**(brew), Docker Ollama 미사용 | 컨테이너 0.3 tok/s vs 네이티브 9.1 tok/s (약 30배). compose 서비스는 Linux/EC2 용으로 유지 | Step 12 |
+| 2026-09-20 | 하이라이트는 같은 줄 연속 단어만 병합 + 중복 제거 | 전부 병합하면 제목·본문을 아우르는 거대한 상자가 생김 (화면 검증에서 발견) | Step 12 |
 
 ## 미결 질문
 
@@ -63,7 +66,7 @@
 - [ ] SPEC §4.1에 `LectureTranscriptRepository`가 없음. 필요 여부 (기능 구현 단계에서 결정)
 - [x] ~~인증 API SPEC 정의~~ → §2.1-6 ~ §2.1-10 추가 완료
 - [x] ~~원본 파일 저장 전략~~ → 현행 유지, 앱 확장 시 D안 재검토
-- [ ] `SlideTimeline`의 데이터(슬라이드별 발화 분량, 시험 힌트 유무)를 가져올 API가 SPEC §2.1에 없음 (Step 4)
+- [ ] `SlideTimeline`의 데이터(슬라이드별 발화 분량, 시험 힌트 유무)를 가져올 API가 SPEC §2.1에 없음 (Step 4, 12)
 - [ ] §2.1-5 채팅 SSE의 이벤트 형식(토큰 청크, citations 구조)이 정의되지 않음 (Step 4)
 - [x] ~~프론트엔드 API 주소 환경 변수와 CORS~~ → `NEXT_PUBLIC_API_BASE_URL`, `WEB_CLIENT_ORIGIN` (Step 5)
 - [x] ~~강의 목록과 PDF 업로드 화면~~ → `/lectures`, `/lectures/new` 추가, SPEC §2.1-11·12 반영 (Step 6)
@@ -83,3 +86,6 @@
 - [ ] Webhook 실패 시 강의가 ANALYZING 에 멈춤 — 재시도/타임아웃 필요 (Step 10)
 - [ ] 배치 작업 진행 상태 조회 수단 없음 (task_id 추적 안 함) (Step 10)
 - [ ] 정렬 품질 평가 수단 없음. 전환 패널티(0.05)는 실제 강의 데이터로 조정 필요 (Step 11)
+- [ ] 슬라이드 45장이면 LLM 호출도 45번(로컬 7B 약 13분). 병렬화/진행률 표시 검토 (Step 12)
+- [ ] 시험 힌트가 잘 안 잡힘 — 프롬프트 조정 여지 (Step 12)
+- [ ] Docker Ollama 볼륨(모델 6.6GB) 정리 여부 (Step 12)

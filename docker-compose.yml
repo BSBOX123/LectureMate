@@ -22,6 +22,9 @@ services:
       timeout: 5s
       retries: 10
 
+  # macOS 에서는 컨테이너가 GPU(Metal)를 쓸 수 없고 CPU 추론도 매우 느리다(실측 0.3 tok/s).
+  # Mac 개발 환경에서는 네이티브 Ollama(brew install ollama)를 쓰고 이 서비스는 띄우지 않는다.
+  # Linux/EC2 GPU 서버에서는 이 서비스를 그대로 사용한다.
   ollama:
     image: ollama/ollama:latest
     container_name: lecturemate-ollama

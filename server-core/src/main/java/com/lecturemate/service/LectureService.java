@@ -1,10 +1,12 @@
 package com.lecturemate.service;
 
 import com.lecturemate.api.dto.LectureResponse;
+import com.lecturemate.api.dto.PageAnnotationResponse;
 import com.lecturemate.domain.entity.Lecture;
 import com.lecturemate.domain.entity.LectureStatus;
 import com.lecturemate.domain.entity.User;
 import com.lecturemate.repository.LectureRepository;
+import com.lecturemate.repository.SlideAnnotationRepository;
 import com.lecturemate.repository.UserRepository;
 import java.nio.file.Path;
 import java.util.List;
@@ -20,16 +22,19 @@ import org.springframework.http.HttpStatus;
 public class LectureService {
 
   private final LectureRepository lectureRepository;
+  private final SlideAnnotationRepository slideAnnotationRepository;
   private final UserRepository userRepository;
   private final StorageService storageService;
   private final ApplicationEventPublisher eventPublisher;
 
   public LectureService(
       LectureRepository lectureRepository,
+      SlideAnnotationRepository slideAnnotationRepository,
       UserRepository userRepository,
       StorageService storageService,
       ApplicationEventPublisher eventPublisher) {
     this.lectureRepository = lectureRepository;
+    this.slideAnnotationRepository = slideAnnotationRepository;
     this.userRepository = userRepository;
     this.storageService = storageService;
     this.eventPublisher = eventPublisher;
@@ -63,6 +68,19 @@ public class LectureService {
         .findByIdAndUserId(lectureId, userId)
         .map(LectureResponse::from)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+  }
+
+  /** 슬라이드별 자동 필기 조회 (SPEC §2.1-4). 분석 전이면 404. */
+  @Transactional(readOnly = true)
+  public PageAnnotationResponse findAnnotation(Long userId, Long lectureId, int pageNumber) {
+    findOwned(userId, lectureId); // 소유자가 아니면 404
+    return slideAnnotationRepository
+        .findByLectureIdAndPageNumber(lectureId, pageNumber)
+        .map(PageAnnotationResponse::from)
+        .orElseThrow(
+            () ->
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "해당 슬라이드의 자동 필기가 아직 없습니다."));
   }
 
   @Transactional(readOnly = true)

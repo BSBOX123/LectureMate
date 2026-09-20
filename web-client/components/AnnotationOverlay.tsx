@@ -18,6 +18,18 @@ export default function AnnotationOverlay({ annotation, scale }: AnnotationOverl
 
   return (
     <div className="pointer-events-none absolute inset-0">
+      <div className="absolute right-2 top-2 max-w-xs rounded bg-white/95 p-3 text-xs shadow ring-1 ring-zinc-200">
+        <p className="font-semibold text-zinc-900">교수님 요약</p>
+        <p className="mt-1 text-zinc-700">{annotation.professorSummary}</p>
+        {annotation.examHints && (
+          <p className="mt-2 rounded bg-amber-50 p-2 text-amber-900">
+            <span className="font-semibold">시험 힌트</span> {annotation.examHints}
+          </p>
+        )}
+        <p className="mt-2 text-[10px] text-zinc-400">
+          신뢰도 {Math.round(annotation.confidenceScore * 100)}%
+        </p>
+      </div>
       {annotation.highlights.map((highlight, index) => {
         const rect = toOverlayRect(highlight.bbox, scale);
         return (

@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { lectureApi } from "@/lib/api";
-import type { LectureResponse } from "@/types/api";
+import type { LectureResponse, PageAnnotationResponse } from "@/types/api";
 import AnnotationOverlay from "@/components/AnnotationOverlay";
 import AudioRecorder from "@/components/AudioRecorder";
 import LectureChatPanel from "@/components/LectureChatPanel";
@@ -33,6 +33,7 @@ export default function LectureDashboardPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [recording, setRecording] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+  const [annotation, setAnnotation] = useState<PageAnnotationResponse | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(lectureId)) {
@@ -63,6 +64,29 @@ export default function LectureDashboardPage() {
     const timer = setInterval(() => setReloadKey((key) => key + 1), 2000);
     return () => clearInterval(timer);
   }, [lecture?.status, recording]);
+
+  // 현재 슬라이드의 자동 필기 (분석 전이면 404 → null)
+  useEffect(() => {
+    if (!Number.isFinite(lectureId)) {
+      return;
+    }
+    let cancelled = false;
+    void lectureApi
+      .annotations(lectureId, currentPage)
+      .then((loaded) => {
+        if (!cancelled) {
+          setAnnotation(loaded);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAnnotation(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [lectureId, currentPage, lecture?.status, reloadKey]);
 
   // PDF 는 인증이 필요하므로 blob URL 로 받아 둔다
   useEffect(() => {
@@ -134,7 +158,7 @@ export default function LectureDashboardPage() {
           onDocumentLoaded={handleDocumentLoaded}
           onPageRendered={handlePageRendered}
         >
-          <AnnotationOverlay annotation={null} scale={scale} />
+          <AnnotationOverlay annotation={annotation} scale={scale} />
         </PdfViewer>
         <LectureChatPanel
           lectureId={lectureId}

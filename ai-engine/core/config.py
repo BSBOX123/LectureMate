@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     # LLM (Ollama / vLLM OpenAI 호환 엔드포인트)
     llm_backend_url: str = "http://localhost:11434/v1"
     llm_model_name: str = "qwen2.5:14b-instruct"
+    # CPU 추론은 느리다. 슬라이드 한 장당 이 시간을 넘기면 포기한다.
+    llm_timeout_seconds: float = 180.0
 
 
 @lru_cache

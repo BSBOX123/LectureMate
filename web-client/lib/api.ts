@@ -1,4 +1,8 @@
-import type { LectureResponse, RecordingFinishResponse } from "@/types/api";
+import type {
+  LectureResponse,
+  PageAnnotationResponse,
+  RecordingFinishResponse,
+} from "@/types/api";
 import type {
   LoginRequest,
   SignupRequest,
@@ -119,6 +123,12 @@ export const lectureApi = {
     }),
 
   list: () => request<LectureResponse[]>("/api/v1/lectures"),
+
+  /** §2.1-4 슬라이드 자동 필기. 분석 전이면 404 */
+  annotations: (lectureId: number, pageNumber: number) =>
+    request<PageAnnotationResponse>(
+      `/api/v1/lectures/${lectureId}/pages/${pageNumber}/annotations`,
+    ),
 
   /** PDF 는 인증이 필요하므로 fetch 로 받아 blob URL 로 변환한다. */
   pdfObjectUrl: async (pdfUrl: string) => {

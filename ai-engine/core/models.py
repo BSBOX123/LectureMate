@@ -3,11 +3,29 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, DateTime, Integer, Text, func
+from sqlalchemy import BigInteger, DateTime, Float, Integer, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.database import Base
+
+
+class SlideAnnotation(Base):
+    """슬라이드별 자동 필기 (slide_annotations). FastAPI 가 적재한다."""
+
+    __tablename__ = "slide_annotations"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    slide_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    lecture_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    page_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    professor_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    exam_hints: Mapped[str | None] = mapped_column(Text, nullable=True)
+    highlight_bboxes: Mapped[list[dict]] = mapped_column(JSONB, nullable=False)
+    confidence_score: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class LectureTranscript(Base):

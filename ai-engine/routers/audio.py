@@ -20,8 +20,9 @@ from sqlalchemy import select
 
 from core.config import settings
 from core.database import AsyncSessionLocal, get_session
-from core.models import LectureSlide, LectureTranscript
+from core.models import LectureSlide, LectureTranscript, SlideAnnotation
 from services.alignment_service import align_segments_to_pages
+from services.annotation_service import generate_annotation
 from services.embedding_service import embed_texts
 from services.spring_webhook import notify_analysis_complete
 from services.stt_service import transcribe_file, transcribe_pcm
@@ -110,6 +111,68 @@ async def analyze_batch(
     return AnalyzeBatchResponse(task_id=task_id, status="QUEUED")
 
 
+async def _generate_annotations(
+    session: AsyncSession, lecture_id: int, matched_pages: list[int | None], segments
+) -> int:
+    """슬라이드별로 모인 발화를 LLM 에 넣어 자동 필기를 만든다 (SPEC §2.1-4).
+
+    한 슬라이드가 실패해도 나머지는 계속 만든다.
+    """
+    speech_by_page: dict[int, list[str]] = {}
+    for segment, page in zip(segments, matched_pages, strict=True):
+        if page is not None:
+            speech_by_page.setdefault(page, []).append(segment.text)
+    if not speech_by_page:
+        return 0
+
+    slides = (
+        (
+            await session.execute(
+                select(LectureSlide)
+                .where(LectureSlide.lecture_id == lecture_id)
+                .order_by(LectureSlide.page_number)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    await session.execute(
+        delete(SlideAnnotation).where(SlideAnnotation.lecture_id == lecture_id)
+    )
+
+    created = 0
+    for slide in slides:
+        speech = speech_by_page.get(slide.page_number)
+        if not speech:
+            continue
+        try:
+            annotation = await run_in_threadpool(
+                generate_annotation, slide.page_number, slide.slide_text, slide.layout_data, speech
+            )
+        except Exception:  # noqa: BLE001 - LLM 실패가 전체 분석을 막으면 안 된다
+            log.exception(
+                "자동 필기 생성 실패 lecture_id=%s page=%s", lecture_id, slide.page_number
+            )
+            continue
+        if annotation is None:
+            continue
+        session.add(
+            SlideAnnotation(
+                slide_id=slide.id,
+                lecture_id=lecture_id,
+                page_number=annotation.page_number,
+                professor_summary=annotation.professor_summary,
+                exam_hints=annotation.exam_hints,
+                highlight_bboxes=annotation.highlight_bboxes,
+                confidence_score=annotation.confidence_score,
+            )
+        )
+        created += 1
+
+    await session.commit()
+    return created
+
+
 async def _slide_embeddings(session: AsyncSession, lecture_id: int):
     """슬라이드 페이지 번호와 임베딩 행렬을 돌려준다.
 
@@ -187,15 +250,20 @@ async def run_batch_analysis(lecture_id: int, audio_path: str) -> None:
             )
             await session.commit()
 
+            annotated_pages = await _generate_annotations(
+                session, lecture_id, matched_pages, segments
+            )
+
         matched = [page for page in matched_pages if page is not None]
         log.info(
-            "배치 분석 완료 lecture_id=%s segments=%s matched=%s pages=%s",
+            "배치 분석 완료 lecture_id=%s segments=%s matched=%s pages=%s 필기=%s",
             lecture_id,
             len(segments),
             len(matched),
             len(set(matched)),
+            annotated_pages,
         )
-        await notify_analysis_complete(lecture_id, "READY", len(set(matched)), len(matched))
+        await notify_analysis_complete(lecture_id, "READY", annotated_pages, len(matched))
     except Exception:  # noqa: BLE001 - 어떤 실패든 강의 상태를 FAILED 로 돌려야 한다
         log.exception("배치 분석 실패 lecture_id=%s", lecture_id)
         await notify_analysis_complete(lecture_id, "FAILED", 0, 0)

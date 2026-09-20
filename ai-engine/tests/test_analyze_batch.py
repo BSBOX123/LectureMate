@@ -11,6 +11,7 @@ from sqlalchemy import text
 import main
 import routers.audio as audio_router
 from core.database import AsyncSessionLocal
+from services.annotation_service import Annotation
 from services.stt_service import TranscribedSegment
 
 TEST_EMAIL = "analyze-batch-test@example.com"
@@ -165,8 +166,104 @@ async def test_aligns_segments_to_slides(
     ).all()
     assert [row.matched_slide_page for row in rows] == [1, 2]
     assert all(row.has_embedding for row in rows)
-    # totalPagesAnalyzed = 매칭된 슬라이드 수, matchedTranscriptSegments = 매칭된 세그먼트 수
+    # 자동 필기는 LLM 이 필요해 이 테스트에서는 생성되지 않는다 → totalPagesAnalyzed = 0
+    assert webhook_calls == [(lecture_id, "READY", 0, 2)]
+
+
+async def test_generates_annotations_for_matched_slides(
+    client, lecture_id, audio_file, fake_transcription, webhook_calls, monkeypatch
+):
+    """정렬이 끝나면 슬라이드별로 자동 필기를 만들어 slide_annotations 에 넣는다."""
+    await _execute(
+        """
+        INSERT INTO lecture_slides (lecture_id, page_number, slide_text, layout_data, embedding)
+        VALUES (:id, 1, '다익스트라', '[{"word": "다익스트라", "bbox": [1, 2, 3, 4]}]', :v1),
+               (:id, 2, '벨만 포드', '[{"word": "벨만", "bbox": [5, 6, 7, 8]}]', :v2)
+        """,
+        id=lecture_id,
+        v1=str([1.0] + [0.0] * 1023),
+        v2=str([0.0, 1.0] + [0.0] * 1022),
+    )
+    monkeypatch.setattr(
+        audio_router,
+        "embed_texts",
+        lambda texts: [[1.0] + [0.0] * 1023, [0.0, 1.0] + [0.0] * 1022][: len(texts)],
+    )
+
+    calls: list[tuple] = []
+
+    def fake_annotation(page_number, slide_text, layout_data, speech_segments):
+        calls.append((page_number, tuple(speech_segments)))
+        return Annotation(
+            page_number=page_number,
+            professor_summary=f"{page_number}쪽 요약",
+            exam_hints="시험에 나옴" if page_number == 2 else None,
+            highlight_bboxes=[{"word": "다익스트라", "bbox": [1, 2, 3, 4], "color": "#FFEB3B"}],
+            confidence_score=0.9,
+        )
+
+    monkeypatch.setattr(audio_router, "generate_annotation", fake_annotation)
+
+    await client.post(
+        f"/ai/v1/lectures/{lecture_id}/analyze-batch", json={"audio_path": str(audio_file)}
+    )
+
+    rows = (
+        await _execute(
+            "SELECT page_number, professor_summary, exam_hints, highlight_bboxes, confidence_score"
+            " FROM slide_annotations WHERE lecture_id = :id ORDER BY page_number",
+            id=lecture_id,
+        )
+    ).all()
+    assert [row.page_number for row in rows] == [1, 2]
+    assert rows[0].professor_summary == "1쪽 요약"
+    assert rows[0].exam_hints is None
+    assert rows[1].exam_hints == "시험에 나옴"
+    assert rows[0].highlight_bboxes[0]["color"] == "#FFEB3B"
+    assert rows[0].confidence_score == 0.9
+
+    # 슬라이드마다 그 슬라이드에 매칭된 발화만 전달된다
+    assert calls == [(1, ("오늘은 다익스트라를 공부합니다.",)), (2, ("음수 가중치는 벨만 포드를 씁니다.",))]
     assert webhook_calls == [(lecture_id, "READY", 2, 2)]
+
+
+async def test_annotation_failure_does_not_break_analysis(
+    client, lecture_id, audio_file, fake_transcription, webhook_calls, monkeypatch
+):
+    """LLM 이 실패해도 전사/정렬 결과는 남고 분석은 READY 로 끝난다."""
+    await _execute(
+        """
+        INSERT INTO lecture_slides (lecture_id, page_number, slide_text, layout_data, embedding)
+        VALUES (:id, 1, '다익스트라', '[]', :v1)
+        """,
+        id=lecture_id,
+        v1=str([1.0] + [0.0] * 1023),
+    )
+    monkeypatch.setattr(audio_router, "embed_texts", lambda texts: [[1.0] + [0.0] * 1023] * len(texts))
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("LLM 연결 실패")
+
+    monkeypatch.setattr(audio_router, "generate_annotation", boom)
+
+    await client.post(
+        f"/ai/v1/lectures/{lecture_id}/analyze-batch", json={"audio_path": str(audio_file)}
+    )
+
+    transcripts = (
+        await _execute(
+            "SELECT count(*) FROM lecture_transcripts WHERE lecture_id = :id", id=lecture_id
+        )
+    ).scalar_one()
+    annotations = (
+        await _execute(
+            "SELECT count(*) FROM slide_annotations WHERE lecture_id = :id", id=lecture_id
+        )
+    ).scalar_one()
+
+    assert transcripts == 2
+    assert annotations == 0
+    assert webhook_calls == [(lecture_id, "READY", 0, 2)]
 
 
 async def test_missing_audio_file_returns_404(client, lecture_id):
