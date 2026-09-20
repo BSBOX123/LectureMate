@@ -3,6 +3,7 @@ package com.lecturemate.service;
 import com.lecturemate.client.FastApiClient;
 import com.lecturemate.domain.entity.LectureStatus;
 import com.lecturemate.service.LectureService.PdfUploadedEvent;
+import com.lecturemate.service.LectureService.RecordingFinishedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -18,6 +19,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class PdfParseTrigger {
 
+
   private static final Logger log = LoggerFactory.getLogger(PdfParseTrigger.class);
 
   private final FastApiClient fastApiClient;
@@ -26,6 +28,24 @@ public class PdfParseTrigger {
   public PdfParseTrigger(FastApiClient fastApiClient, LectureService lectureService) {
     this.fastApiClient = fastApiClient;
     this.lectureService = lectureService;
+  }
+
+  /** 녹음 종료 후 FastAPI 배치 분석을 요청한다 (SPEC §2.2-2). 완료 통보는 Webhook 으로 받는다. */
+  @Async
+  @TransactionalEventListener
+  public void onRecordingFinished(RecordingFinishedEvent event) {
+    try {
+      FastApiClient.AnalyzeBatchResponse response =
+          fastApiClient.analyzeBatch(event.lectureId(), event.audioPath());
+      log.info(
+          "배치 분석 요청 완료 lectureId={} taskId={} status={}",
+          event.lectureId(),
+          response.task_id(),
+          response.status());
+    } catch (RuntimeException e) {
+      log.error("배치 분석 요청 실패 lectureId={}", event.lectureId(), e);
+      lectureService.changeStatus(event.lectureId(), LectureStatus.FAILED);
+    }
   }
 
   @Async

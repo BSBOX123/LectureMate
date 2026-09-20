@@ -1,4 +1,4 @@
-import type { LectureResponse } from "@/types/api";
+import type { LectureResponse, RecordingFinishResponse } from "@/types/api";
 import type {
   LoginRequest,
   SignupRequest,
@@ -111,6 +111,12 @@ export const lectureApi = {
   },
 
   get: (lectureId: number) => request<LectureResponse>(`/api/v1/lectures/${lectureId}`),
+
+  /** §2.1-3 녹음 종료 후 정밀 분석 시작 */
+  finishRecording: (lectureId: number) =>
+    request<RecordingFinishResponse>(`/api/v1/lectures/${lectureId}/recording/finish`, {
+      method: "POST",
+    }),
 
   list: () => request<LectureResponse[]>("/api/v1/lectures"),
 

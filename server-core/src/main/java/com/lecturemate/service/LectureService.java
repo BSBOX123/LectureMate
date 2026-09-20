@@ -38,6 +38,9 @@ public class LectureService {
   /** PDF 파싱을 요청해야 할 강의. 트랜잭션 커밋 후에 처리한다. */
   public record PdfUploadedEvent(Long lectureId, String pdfPath) {}
 
+  /** 녹음이 끝나 배치 분석을 요청해야 할 강의. 트랜잭션 커밋 후에 처리한다. */
+  public record RecordingFinishedEvent(Long lectureId, String audioPath) {}
+
   @Transactional
   public LectureResponse create(Long userId, String title, MultipartFile file) {
     User user =
@@ -69,7 +72,29 @@ public class LectureService {
         .toList();
   }
 
-  /** 녹음이 끝나 WAV 가 만들어졌을 때 호출한다. 분석 트리거(§2.1-3)는 아직 별도 단계. */
+  /**
+   * 녹음 종료 후 정밀 분석을 요청한다 (SPEC §2.1-3).
+   *
+   * @throws ResponseStatusException 소유자가 아니면 404, 녹음 파일이 없으면 409
+   */
+  @Transactional
+  public LectureResponse finishRecording(Long userId, Long lectureId) {
+    Lecture lecture =
+        lectureRepository
+            .findByIdAndUserId(lectureId, userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+    Path audioPath = storageService.audioPath(lectureId);
+    if (lecture.getAudioUrl() == null || !java.nio.file.Files.isReadable(audioPath)) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "녹음된 오디오가 없습니다.");
+    }
+
+    lecture.changeStatus(LectureStatus.ANALYZING);
+    eventPublisher.publishEvent(new RecordingFinishedEvent(lectureId, audioPath.toString()));
+    return LectureResponse.from(lecture);
+  }
+
+  /** 녹음이 끝나 WAV 가 만들어졌을 때 호출한다 (WebSocket 종료 시점). */
   @Transactional
   public void attachAudio(Long lectureId, String audioUrl) {
     lectureRepository

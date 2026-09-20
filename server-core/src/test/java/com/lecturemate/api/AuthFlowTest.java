@@ -186,10 +186,10 @@ class AuthFlowTest {
         .perform(post("/internal/v1/lectures/1/analysis-complete"))
         .andExpect(status().isUnauthorized());
 
-    // 시크릿이 맞으면 필터를 통과한다 (해당 Webhook 컨트롤러는 아직 없으므로 404)
+    // 시크릿이 맞으면 필터를 통과한다 (없는 경로이므로 404)
     mockMvc
         .perform(
-            post("/internal/v1/lectures/1/analysis-complete")
+            post("/internal/v1/unknown-endpoint")
                 .header(InternalSecretFilter.HEADER, "local-dev-internal-secret"))
         .andExpect(status().isNotFound());
   }

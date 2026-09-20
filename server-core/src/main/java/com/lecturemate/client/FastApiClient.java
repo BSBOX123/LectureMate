@@ -34,6 +34,20 @@ public class FastApiClient {
   /** SPEC §2.2-1 응답. */
   public record PdfParseResponse(Integer total_pages, String status) {}
 
+  /** SPEC §2.2-2 요청/응답. */
+  public record AnalyzeBatchRequest(String audio_path) {}
+
+  public record AnalyzeBatchResponse(String task_id, String status) {}
+
+  public AnalyzeBatchResponse analyzeBatch(Long lectureId, String audioPath) {
+    return restClient
+        .post()
+        .uri("/ai/v1/lectures/{lectureId}/analyze-batch", lectureId)
+        .body(new AnalyzeBatchRequest(audioPath))
+        .retrieve()
+        .body(AnalyzeBatchResponse.class);
+  }
+
   public PdfParseResponse parsePdf(Long lectureId, String pdfPath) {
     return restClient
         .post()

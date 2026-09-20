@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     # Spring Boot 배치 완료 Webhook (SPEC §2.2-4)
     spring_boot_webhook_url: str = "http://localhost:8080/internal/v1"
+    # Webhook 공유 시크릿 (SPEC §2.2, X-Internal-Secret 헤더)
+    internal_api_secret: str = "local-dev-internal-secret"
 
     # Models
     # 배치 정밀 전사용 (SPEC §2.2-2)

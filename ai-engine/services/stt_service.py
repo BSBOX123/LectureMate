@@ -4,7 +4,9 @@
 모델은 첫 호출 때 내려받아 캐시하며, 이후에는 메모리에 유지한다.
 """
 
+from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -45,3 +47,31 @@ def transcribe_pcm(pcm: bytes, model_name: str | None = None) -> str:
         vad_filter=True,
     )
     return " ".join(segment.text.strip() for segment in segments).strip()
+
+
+@dataclass(frozen=True)
+class TranscribedSegment:
+    """전사 세그먼트 하나 (SPEC §3 lecture_transcripts)."""
+
+    start_time_ms: int
+    end_time_ms: int
+    text: str
+
+
+def transcribe_file(audio_path: str | Path, model_name: str | None = None) -> list[TranscribedSegment]:
+    """WAV 파일 전체를 정밀 전사한다 (SPEC §2.2-2). 기본 모델은 large-v3."""
+    model = load_model(model_name or settings.whisper_model_name)
+    segments, _ = model.transcribe(
+        str(audio_path),
+        language=settings.whisper_language,
+        vad_filter=True,
+    )
+    return [
+        TranscribedSegment(
+            start_time_ms=int(segment.start * 1000),
+            end_time_ms=int(segment.end * 1000),
+            text=segment.text.strip(),
+        )
+        for segment in segments
+        if segment.text.strip()
+    ]

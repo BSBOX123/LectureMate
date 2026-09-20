@@ -14,7 +14,8 @@
 | 6 | 강의 생성 / PDF 업로드 / 파싱 | 완료 | `a1bee50` | [step-6-lecture-upload.md](step-6-lecture-upload.md) |
 | 7 | PDF.js 슬라이드 렌더링, 테스트 DB 분리 | 완료 | `43d5947` | [step-7-pdf-viewer.md](step-7-pdf-viewer.md) |
 | 8 | Flyway 도입 (DB 마이그레이션) | 완료 | `85bb4ec` | [step-8-flyway.md](step-8-flyway.md) |
-| 9 | 녹음 + 실시간 자막 (WebSocket + Whisper) | 완료 (검토 대기) | - | [step-9-recording.md](step-9-recording.md) |
+| 9 | 녹음 + 실시간 자막 (WebSocket + Whisper) | 완료 | `ba67ee8` | [step-9-recording.md](step-9-recording.md) |
+| 10 | 배치 정밀 전사 (녹음 종료 → 분석 → 완료 Webhook) | 완료 (검토 대기) | - | [step-10-batch-transcription.md](step-10-batch-transcription.md) |
 
 ## 주요 결정 기록
 
@@ -47,6 +48,8 @@
 | 2026-09-20 | WebSocket 인증은 쿼리 파라미터 토큰 | 사용자 선택. 브라우저가 WS 에 헤더를 못 붙임. 검증은 핸들러 한 곳에 집중 | Step 9 |
 | 2026-09-20 | 오디오는 16kHz 모노 16bit PCM 전송 | 사용자 선택. 청크 독립 디코딩 가능, .wav 저장과 직결. 시간당 약 115MB | Step 9 |
 | 2026-09-20 | 실시간 프리뷰는 Whisper base, 배치는 large-v3 | base 가 아니면 CPU 에서 3초 청크를 따라가지 못함 (SPEC §4.2와 일치) | Step 9 |
+| 2026-09-20 | 정밀 분석은 사용자가 버튼으로 시작 (자동 호출 아님) | 녹음 종료 직후 자동 호출 시 WAV 생성 전 도착해 409 발생 가능 | Step 10 |
+| 2026-09-20 | 완료 통보는 Webhook, 값은 임시 의미 (`totalPagesAnalyzed=0`) | 정렬/필기 미구현 구간. SPEC §2.2 에 주석 명시 | Step 10 |
 
 ## 미결 질문
 
@@ -63,7 +66,7 @@
 - [x] ~~강의 목록과 PDF 업로드 화면~~ → `/lectures`, `/lectures/new` 추가, SPEC §2.1-11·12 반영 (Step 6)
 - [x] ~~`/ws/v1/**` WebSocket 인증 방식~~ → 쿼리 파라미터 토큰 + 핸들러 검증 (Step 9)
 - [ ] 로그인 상태가 아닐 때 `/lectures/[id]` 접근 차단(라우트 가드) 미구현 (Step 5)
-- [ ] `ai-engine`에 `INTERNAL_API_SECRET` 반영 필요 (Webhook 호출 코드 작성 시) (Step 5)
+- [x] ~~`ai-engine`에 `INTERNAL_API_SECRET` 반영~~ → Webhook 호출에 적용 (Step 10)
 - [x] ~~DB 스키마 변경 방식~~ → Flyway 도입 완료 (Step 8)
 - [x] ~~`PdfViewer` PDF 렌더링~~ → PDF.js 적용 완료 (Step 7)
 - [ ] 강의 삭제 API와 파일 정리 정책이 없음 (Step 6)
@@ -74,3 +77,5 @@
 - [ ] 녹음 중 네트워크 끊김 시 재연결 로직 없음 (Step 9)
 - [ ] 장시간 녹음 시 PCM 용량(시간당 약 115MB) 관리 정책 필요 (Step 9)
 - [ ] 운영 전 WebSocket 토큰을 단기 티켓 방식으로 전환할지 (접근 로그 노출) (Step 9)
+- [ ] Webhook 실패 시 강의가 ANALYZING 에 멈춤 — 재시도/타임아웃 필요 (Step 10)
+- [ ] 배치 작업 진행 상태 조회 수단 없음 (task_id 추적 안 함) (Step 10)

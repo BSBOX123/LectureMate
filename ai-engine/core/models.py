@@ -10,6 +10,24 @@ from sqlalchemy.orm import Mapped, mapped_column
 from core.database import Base
 
 
+class LectureTranscript(Base):
+    """오디오 전사 세그먼트 (lecture_transcripts). FastAPI 가 적재한다."""
+
+    __tablename__ = "lecture_transcripts"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    lecture_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    start_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    speaker_text: Mapped[str] = mapped_column(Text, nullable=False)
+    # 슬라이드 정렬(alignment_service)은 다음 단계에서 채운다
+    matched_slide_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class LectureSlide(Base):
     """PDF 슬라이드 페이지 (lecture_slides). FastAPI 가 적재하고 Spring Boot 는 조회만 한다."""
 

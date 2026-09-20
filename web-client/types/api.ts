@@ -16,6 +16,8 @@ export interface LectureResponse {
   title: string;
   status: LectureStatus;
   pdfUrl: string | null;
+  /** 녹음이 끝나 WAV 가 저장되면 설정된다 */
+  audioUrl: string | null;
 }
 
 /** §2.1-2 WS /ws/v1/lectures/{lectureId}/audio 서버 → 클라이언트 이벤트 */
@@ -32,6 +34,7 @@ export interface RecordingFinishResponse {
   status: LectureStatus;
   message: string;
 }
+
 
 /** PDF 좌표계 [x1, y1, x2, y2] */
 export type BBox = [number, number, number, number];

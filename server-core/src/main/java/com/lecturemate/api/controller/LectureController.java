@@ -1,6 +1,7 @@
 package com.lecturemate.api.controller;
 
 import com.lecturemate.api.dto.LectureResponse;
+import com.lecturemate.api.dto.RecordingFinishResponse;
 import com.lecturemate.service.LectureService;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -38,6 +39,18 @@ public class LectureController {
       @RequestParam @NotBlank @Size(max = 255) String title,
       @RequestParam("file") MultipartFile file) {
     return lectureService.create(userId(jwt), title, file);
+  }
+
+  /** 녹음 종료 및 정밀 분석 트리거 (SPEC §2.1-3). */
+  @PostMapping("/{lectureId}/recording/finish")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  public RecordingFinishResponse finishRecording(
+      @AuthenticationPrincipal Jwt jwt, @PathVariable Long lectureId) {
+    LectureResponse lecture = lectureService.finishRecording(userId(jwt), lectureId);
+    return new RecordingFinishResponse(
+        lecture.lectureId(),
+        lecture.status(),
+        "강의 종료 후 정밀 전사 및 슬라이드 필기 매칭 분석이 시작되었습니다.");
   }
 
   @GetMapping("/{lectureId}")

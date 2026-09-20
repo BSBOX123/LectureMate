@@ -32,6 +32,7 @@ export default function LectureDashboardPage() {
 
   const [reloadKey, setReloadKey] = useState(0);
   const [recording, setRecording] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(lectureId)) {
@@ -52,7 +53,10 @@ export default function LectureDashboardPage() {
   // 서버가 RECORDING 으로 바꾸는 시점이 WebSocket open 직후라 한 번만 조회하면 놓칠 수 있다.
   useEffect(() => {
     const inProgress =
-      recording || lecture?.status === "PROCESSING" || lecture?.status === "RECORDING";
+      recording ||
+      lecture?.status === "PROCESSING" ||
+      lecture?.status === "RECORDING" ||
+      lecture?.status === "ANALYZING";
     if (!inProgress) {
       return;
     }
@@ -87,6 +91,26 @@ export default function LectureDashboardPage() {
             <span className="ml-2 text-xs font-normal text-zinc-500">{lecture.status}</span>
           )}
         </h1>
+        {lecture?.audioUrl && lecture.status === "READY" && (
+          <button
+            type="button"
+            className="rounded border px-3 py-1 text-sm"
+            onClick={() => {
+              setAnalyzeError(null);
+              void lectureApi
+                .finishRecording(lectureId)
+                .then(() => setReloadKey((key) => key + 1))
+                .catch((cause: unknown) =>
+                  setAnalyzeError(
+                    cause instanceof Error ? cause.message : "분석을 시작하지 못했습니다.",
+                  ),
+                );
+            }}
+          >
+            정밀 분석 시작
+          </button>
+        )}
+        {analyzeError && <p className="text-sm text-red-600">{analyzeError}</p>}
         <AudioRecorder
           lectureId={lectureId}
           onRecordingStarted={() => setRecording(true)}
