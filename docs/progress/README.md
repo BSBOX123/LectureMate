@@ -21,7 +21,8 @@
 | 13 | RAG 질의응답 (하이브리드 검색 + SSE) | 완료 | `d6a6ff6` | [step-13-rag-chat.md](step-13-rag-chat.md) |
 | 14 | 배포 준비 (Docker 이미지, Nginx, CI) | 완료 | `f793455` | [step-14-deployment.md](step-14-deployment.md) |
 | 15 | 데스크톱 실행 앱 (서비스 일괄 시작/중지) | 완료 | `4f7f901` | [step-15-launcher.md](step-15-launcher.md) |
-| 16 | 화면 다듬기 (가드·타임라인·삭제·재시도) | 완료 (검토 대기) | - | [step-16-ui-polish.md](step-16-ui-polish.md) |
+| 16 | 화면 다듬기 (가드·타임라인·삭제·재시도) | 완료 | `695cf2b` | [step-16-ui-polish.md](step-16-ui-polish.md) |
+| 17 | LLM 백엔드를 Claude Code 로 교체 | 완료 (검토 대기) | - | [step-17-claude-code-llm.md](step-17-claude-code-llm.md) |
 
 > GitHub: [BSBOX123/LectureMate](https://github.com/BSBOX123/LectureMate) — main 푸시 완료, CI 3개 잡 통과
 
@@ -76,6 +77,7 @@
 | 2026-09-20 | 로그인 가드는 `/lectures` 레이아웃 한 곳에 | 페이지마다 검사하면 새 화면에서 빠뜨리기 쉬움 | Step 16 |
 | 2026-09-20 | SPEC §2.1-12/13/14 신설 (타임라인·삭제·재시도) | 화면에 필요한데 명세에 없던 API | Step 16 |
 | 2026-09-20 | 삭제 시 하위 데이터는 DB CASCADE 에 맡김 | 스키마에 이미 있는 제약. 애플리케이션 중복 삭제 불필요 | Step 16 |
+| 2026-09-20 | **LLM 을 Claude Code(headless)로 교체**, `LLM_PROVIDER` 로 Ollama 전환 가능 | 7B 품질 한계. 로컬 전용이라 구독 사용 가능. RAG·벡터 DB·citations 는 그대로 유지 | Step 17 |
 
 ## 미결 질문
 
@@ -111,7 +113,9 @@
 - [ ] 배치 작업 진행 상태 조회 수단 없음 (task_id 추적 안 함) (Step 10)
 - [ ] 정렬 품질 평가 수단 없음. 전환 패널티(0.05)는 실제 강의 데이터로 조정 필요 (Step 11)
 - [ ] 슬라이드 45장이면 LLM 호출도 45번(로컬 7B 약 13분). 병렬화/진행률 표시 검토 (Step 12)
-- [ ] 시험 힌트가 잘 안 잡힘 — 프롬프트 조정 여지 (Step 12, 16에서도 미표시 확인)
+- [ ] 시험 힌트 확인: 테스트 음원에 '시험' 언급이 없어 미표시. 실제 강의로 검증 필요 (Step 12, 16, 17)
+- [ ] Claude Code 프로세스 시작 2~3초 — 세션 재사용(`--resume`)으로 단축 검토 (Step 17)
+- [ ] 슬라이드 45장 = LLM 45회 호출. 사용량·시간 고려한 병렬/묶음 처리 검토 (Step 17)
 - [ ] 채팅이 이전 질문 맥락을 이어받지 않음 (매 질문 독립) (Step 13)
 - [ ] 같은 쪽 발화가 여러 건이면 출처 뱃지가 중복 표시됨 (Step 13)
 - [ ] RAG 검색 품질 평가 수단 없음 (top_k=5 고정) (Step 13)

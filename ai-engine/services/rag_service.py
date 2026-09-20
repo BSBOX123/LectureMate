@@ -9,19 +9,20 @@ import logging
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, asdict
 
-from openai import OpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.models import LectureSlide, LectureTranscript
 from services.embedding_service import embed_texts
+from services.llm_client import stream as llm_stream
 
 log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """너는 대학 강의 복습을 돕는 어시스턴트다.
 아래 [강의 자료]와 [교수님 발화]만 근거로 학생의 질문에 한국어로 답한다.
-근거가 없으면 모른다고 답한다. 답변에서 슬라이드를 언급할 때는 "5쪽"처럼 쪽수를 쓴다."""
+근거가 없으면 모른다고 답한다. 답변에서 슬라이드를 언급할 때는 "5쪽"처럼 쪽수를 쓴다.
+화면에 그대로 표시되므로 마크다운(**, ##, - 등) 없이 평문으로 답한다."""
 
 USER_PROMPT = """[강의 자료]
 {slides}
@@ -117,42 +118,25 @@ def _snippet(text: str, limit: int = 120) -> str:
 
 
 def stream_answer(question: str, slides, transcripts) -> Iterator[str]:
-    """LLM 토큰을 순서대로 돌려준다 (동기 이터레이터)."""
-    client = OpenAI(
-        base_url=settings.llm_backend_url,
-        api_key="not-needed",
-        timeout=settings.llm_timeout_seconds,
+    """검색한 컨텍스트로 LLM 답변 토큰을 순서대로 돌려준다 (동기 이터레이터).
+
+    LLM 백엔드(Claude Code / Ollama)는 llm_client 가 고른다.
+    """
+    user_prompt = USER_PROMPT.format(
+        slides="\n".join(
+            f"- {slide.page_number}쪽: {_snippet(slide.slide_text, 500)}" for slide in slides
+        )
+        or "(없음)",
+        speech="\n".join(
+            f"- {transcript.matched_slide_page or '?'}쪽"
+            f" ({transcript.start_time_ms // 1000}초): "
+            f"{_snippet(transcript.speaker_text, 500)}"
+            for transcript in transcripts
+        )
+        or "(없음)",
+        question=question,
     )
-    stream = client.chat.completions.create(
-        model=settings.llm_model_name,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": USER_PROMPT.format(
-                    slides="\n".join(
-                        f"- {slide.page_number}쪽: {_snippet(slide.slide_text, 500)}"
-                        for slide in slides
-                    )
-                    or "(없음)",
-                    speech="\n".join(
-                        f"- {transcript.matched_slide_page or '?'}쪽"
-                        f" ({transcript.start_time_ms // 1000}초): "
-                        f"{_snippet(transcript.speaker_text, 500)}"
-                        for transcript in transcripts
-                    )
-                    or "(없음)",
-                    question=question,
-                ),
-            },
-        ],
-        temperature=0.3,
-        stream=True,
-    )
-    for chunk in stream:
-        content = chunk.choices[0].delta.content if chunk.choices else None
-        if content:
-            yield content
+    yield from llm_stream(SYSTEM_PROMPT, user_prompt)
 
 
 async def answer_stream(

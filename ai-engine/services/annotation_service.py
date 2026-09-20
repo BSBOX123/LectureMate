@@ -9,9 +9,8 @@ import logging
 import re
 from dataclasses import dataclass
 
-from openai import OpenAI
-
 from core.config import settings
+from services.llm_client import complete
 
 log = logging.getLogger(__name__)
 
@@ -46,11 +45,6 @@ class Annotation:
     exam_hints: str | None
     highlight_bboxes: list[dict]
     confidence_score: float
-
-
-def _client() -> OpenAI:
-    # Ollama/vLLM 은 OpenAI 호환 API 를 제공한다. 키는 쓰이지 않지만 SDK 가 요구한다.
-    return OpenAI(base_url=settings.llm_backend_url, api_key="not-needed", timeout=settings.llm_timeout_seconds)
 
 
 def parse_llm_json(content: str) -> dict:
@@ -161,23 +155,15 @@ def generate_annotation(
     if not speech_segments:
         return None
 
-    response = _client().chat.completions.create(
-        model=settings.llm_model_name,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": USER_PROMPT.format(
-                    page_number=page_number,
-                    slide_text=slide_text.strip()[:2000],
-                    speech="\n".join(speech_segments)[:4000],
-                ),
-            },
-        ],
-        temperature=0.2,
-        response_format={"type": "json_object"},
+    content = complete(
+        SYSTEM_PROMPT,
+        USER_PROMPT.format(
+            page_number=page_number,
+            slide_text=slide_text.strip()[:2000],
+            speech="\n".join(speech_segments)[:4000],
+        ),
     )
-    parsed = parse_llm_json(response.choices[0].message.content or "")
+    parsed = parse_llm_json(content)
 
     requested = [word for word in parsed.get("highlight_words", []) if isinstance(word, str)][:5]
     highlights = match_highlights(requested, layout_data)

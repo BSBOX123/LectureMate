@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -48,7 +49,15 @@ class Settings(BaseSettings):
     audio_sample_rate: int = 16000
     realtime_chunk_seconds: float = 3.0
 
-    # LLM (Ollama / vLLM OpenAI 호환 엔드포인트)
+    # LLM 백엔드 선택
+    #   claude-code: 로컬 Claude Code CLI (구독 사용량, 품질 높음) — 기본값
+    #   ollama: OpenAI 호환 엔드포인트 (사용량 한도에 걸렸을 때의 대체 수단)
+    llm_provider: Literal["claude-code", "ollama"] = "claude-code"
+    claude_code_command: str = "claude"
+    # 비우면 Claude Code 기본 모델을 쓴다
+    claude_code_model: str | None = None
+
+    # Ollama / vLLM (llm_provider=ollama 일 때)
     llm_backend_url: str = "http://localhost:11434/v1"
     llm_model_name: str = "qwen2.5:14b-instruct"
     # CPU 추론은 느리다. 슬라이드 한 장당 이 시간을 넘기면 포기한다.
