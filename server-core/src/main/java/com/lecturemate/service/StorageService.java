@@ -3,6 +3,9 @@ package com.lecturemate.service;
 import com.lecturemate.config.StorageProperties;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -34,6 +37,67 @@ public class StorageService {
       throw new StorageException("PDF 파일을 저장하지 못했습니다.", e);
     }
     return target;
+  }
+
+  /** 녹음 중 PCM 을 이어붙일 임시 파일 (16bit LE, 모노). */
+  public OutputStream openPcmSink(Long lectureId) {
+    Path target = pcmPath(lectureId);
+    try {
+      Files.createDirectories(target.getParent());
+      return Files.newOutputStream(target);
+    } catch (IOException e) {
+      throw new StorageException("녹음 파일을 열지 못했습니다.", e);
+    }
+  }
+
+  /**
+   * 누적된 PCM 에 WAV 헤더를 붙여 {storage}/audio/{lectureId}.wav 로 만든다 (SPEC §2.2-2 의 audio_path).
+   *
+   * @return 만들어진 WAV 경로
+   */
+  public Path finalizeWav(Long lectureId, int sampleRate) {
+    Path pcm = pcmPath(lectureId);
+    Path wav = audioPath(lectureId);
+    try {
+      long dataSize = Files.size(pcm);
+      try (OutputStream out = Files.newOutputStream(wav)) {
+        out.write(wavHeader(dataSize, sampleRate));
+        Files.copy(pcm, out);
+      }
+      Files.deleteIfExists(pcm);
+      return wav;
+    } catch (IOException e) {
+      throw new StorageException("WAV 파일을 만들지 못했습니다.", e);
+    }
+  }
+
+  private Path pcmPath(Long lectureId) {
+    return root.resolve("audio").resolve(lectureId + ".pcm").toAbsolutePath().normalize();
+  }
+
+  public Path audioPath(Long lectureId) {
+    return root.resolve("audio").resolve(lectureId + ".wav").toAbsolutePath().normalize();
+  }
+
+  /** 44바이트 표준 WAV(PCM 16bit 모노) 헤더. */
+  private static byte[] wavHeader(long dataSize, int sampleRate) {
+    int channels = 1;
+    int bitsPerSample = 16;
+    int byteRate = sampleRate * channels * bitsPerSample / 8;
+    ByteBuffer header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN);
+    header.put("RIFF".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    header.putInt((int) (36 + dataSize));
+    header.put("WAVEfmt ".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    header.putInt(16); // fmt 청크 크기
+    header.putShort((short) 1); // PCM
+    header.putShort((short) channels);
+    header.putInt(sampleRate);
+    header.putInt(byteRate);
+    header.putShort((short) (channels * bitsPerSample / 8)); // block align
+    header.putShort((short) bitsPerSample);
+    header.put("data".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    header.putInt((int) dataSize);
+    return header.array();
   }
 
   public Path pdfPath(Long lectureId) {

@@ -62,6 +62,11 @@ public class Lecture {
     this.status = LectureStatus.PROCESSING;
   }
 
+  /** 녹음 종료: 저장된 WAV 의 URL 을 기록한다. */
+  public void attachAudio(String audioUrl) {
+    this.audioUrl = audioUrl;
+  }
+
   public void changeStatus(LectureStatus status) {
     this.status = status;
   }

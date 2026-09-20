@@ -13,7 +13,8 @@
 | 5 | 인증 (Spring Security + JWT, 로그인/회원가입 화면) | 완료 | `9f277da` | [step-5-auth.md](step-5-auth.md) |
 | 6 | 강의 생성 / PDF 업로드 / 파싱 | 완료 | `a1bee50` | [step-6-lecture-upload.md](step-6-lecture-upload.md) |
 | 7 | PDF.js 슬라이드 렌더링, 테스트 DB 분리 | 완료 | `43d5947` | [step-7-pdf-viewer.md](step-7-pdf-viewer.md) |
-| 8 | Flyway 도입 (DB 마이그레이션) | 완료 (검토 대기) | - | [step-8-flyway.md](step-8-flyway.md) |
+| 8 | Flyway 도입 (DB 마이그레이션) | 완료 | `85bb4ec` | [step-8-flyway.md](step-8-flyway.md) |
+| 9 | 녹음 + 실시간 자막 (WebSocket + Whisper) | 완료 (검토 대기) | - | [step-9-recording.md](step-9-recording.md) |
 
 ## 주요 결정 기록
 
@@ -43,6 +44,9 @@
 | 2026-09-20 | 통합 테스트는 전용 DB `lecturemate_test` 사용 | 테스트의 deleteAll 이 개발용 데이터를 삭제하는 문제 발견 | Step 7 |
 | 2026-09-20 | 브라우저 실검증은 헤드리스 Chrome(puppeteer-core) 스크립트로 수행 | Claude 브라우저 확장 미연결. CORS 등 curl 로 안 잡히는 문제를 잡음 | Step 7 |
 | 2026-09-20 | 스키마 관리를 Flyway 로 이관 (`V1__init_schema.sql` 부터) | 볼륨 삭제 없이 스키마 변경. 운영 데이터가 쌓이기 전에 도입 | Step 8 |
+| 2026-09-20 | WebSocket 인증은 쿼리 파라미터 토큰 | 사용자 선택. 브라우저가 WS 에 헤더를 못 붙임. 검증은 핸들러 한 곳에 집중 | Step 9 |
+| 2026-09-20 | 오디오는 16kHz 모노 16bit PCM 전송 | 사용자 선택. 청크 독립 디코딩 가능, .wav 저장과 직결. 시간당 약 115MB | Step 9 |
+| 2026-09-20 | 실시간 프리뷰는 Whisper base, 배치는 large-v3 | base 가 아니면 CPU 에서 3초 청크를 따라가지 못함 (SPEC §4.2와 일치) | Step 9 |
 
 ## 미결 질문
 
@@ -57,7 +61,7 @@
 - [ ] §2.1-5 채팅 SSE의 이벤트 형식(토큰 청크, citations 구조)이 정의되지 않음 (Step 4)
 - [x] ~~프론트엔드 API 주소 환경 변수와 CORS~~ → `NEXT_PUBLIC_API_BASE_URL`, `WEB_CLIENT_ORIGIN` (Step 5)
 - [x] ~~강의 목록과 PDF 업로드 화면~~ → `/lectures`, `/lectures/new` 추가, SPEC §2.1-11·12 반영 (Step 6)
-- [ ] `/ws/v1/**` WebSocket 인증 방식(브라우저는 헤더를 못 붙임 → 쿼리 파라미터 토큰 등): WS 핸들러 구현 시 결정 (Step 5)
+- [x] ~~`/ws/v1/**` WebSocket 인증 방식~~ → 쿼리 파라미터 토큰 + 핸들러 검증 (Step 9)
 - [ ] 로그인 상태가 아닐 때 `/lectures/[id]` 접근 차단(라우트 가드) 미구현 (Step 5)
 - [ ] `ai-engine`에 `INTERNAL_API_SECRET` 반영 필요 (Webhook 호출 코드 작성 시) (Step 5)
 - [x] ~~DB 스키마 변경 방식~~ → Flyway 도입 완료 (Step 8)
@@ -67,3 +71,6 @@
 - [ ] 브라우저 e2e 스크립트를 저장소에 포함할지 (스크래치패드가 정리되어 현재는 없음) (Step 7)
 - [ ] 배포 설계: Dockerfile, CI/CD, 시크릿 관리, HTTPS, DB 운영 위치, 파일 저장소(S3 여부) — RAG 완성 후 착수 예정 (Step 8)
 - [ ] 첫 화면에서 `/auth/refresh` 401 콘솔 오류가 보임 (세션 없을 때 정상 동작이지만 노이즈) (Step 7)
+- [ ] 녹음 중 네트워크 끊김 시 재연결 로직 없음 (Step 9)
+- [ ] 장시간 녹음 시 PCM 용량(시간당 약 115MB) 관리 정책 필요 (Step 9)
+- [ ] 운영 전 WebSocket 토큰을 단기 티켓 방식으로 전환할지 (접근 로그 노출) (Step 9)

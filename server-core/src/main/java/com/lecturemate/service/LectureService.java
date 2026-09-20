@@ -69,6 +69,18 @@ public class LectureService {
         .toList();
   }
 
+  /** 녹음이 끝나 WAV 가 만들어졌을 때 호출한다. 분석 트리거(§2.1-3)는 아직 별도 단계. */
+  @Transactional
+  public void attachAudio(Long lectureId, String audioUrl) {
+    lectureRepository
+        .findById(lectureId)
+        .ifPresent(
+            lecture -> {
+              lecture.attachAudio(audioUrl);
+              lecture.changeStatus(LectureStatus.READY);
+            });
+  }
+
   @Transactional
   public void changeStatus(Long lectureId, LectureStatus status) {
     lectureRepository.findById(lectureId).ifPresent(lecture -> lecture.changeStatus(status));

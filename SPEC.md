@@ -37,8 +37,10 @@
 
    &nbsp;  
 2. **실시간 오디오 스트림 수신 (WebSocket)**  
-   * `WS /ws/v1/lectures/{lectureId}/audio`  
-   * Client \-\> Spring Boot: Binary Audio Chunks (PCM/Opus, 3\~5초 단위)  
+   * `WS /ws/v1/lectures/{lectureId}/audio?token={accessToken}`  
+   * 인증: 브라우저는 WebSocket 요청에 헤더를 붙일 수 없으므로 Access Token 을 쿼리 파라미터로 전달한다. 토큰이 없거나 강의 소유자가 아니면 1008(Policy Violation)로 종료한다  
+   * Client \-\> Spring Boot: Binary Audio Chunks — **16kHz 모노 16bit LE PCM**, 3\~5초 단위  
+   * 수신한 PCM 은 서버가 누적해 연결 종료 시 `{STORAGE_LOCAL_PATH}/audio/{lectureId}.wav` 로 저장하고 `lectures.audio_url` 을 기록한다  
    * Spring Boot \-\> Client: JSON 프리뷰 자막 이벤트{  
      &nbsp;  
      &nbsp;&nbsp;"type": "TRANSCRIPT\_PREVIEW",  
@@ -168,7 +170,7 @@
 5. **실시간 오디오 청크 STT 프리뷰 (WebSocket, Spring Boot \-\> FastAPI)**  
    * `WS /ai/v1/lectures/{lecture_id}/audio-stream`  
    * 강의 녹음 세션당 1개 연결을 유지 (Spring Boot가 클라이언트 WS 세션 시작 시 연결, 녹음 종료 시 해제)  
-   * Spring Boot \-\> FastAPI: 클라이언트에서 받은 Binary Audio Chunks를 그대로 전달 (§2.1-2와 동일 포맷)  
+   * Spring Boot \-\> FastAPI: 클라이언트에서 받은 Binary Audio Chunks를 그대로 전달 (§2.1-2와 동일한 16kHz 모노 16bit LE PCM). FastAPI 는 3초 분량이 모일 때마다 전사한다  
    * FastAPI \-\> Spring Boot: §2.1-2의 `TRANSCRIPT_PREVIEW` JSON 이벤트와 동일한 포맷 (Spring Boot는 클라이언트로 그대로 중계)
 
 * **내부 API 인증:** FastAPI \-\> Spring Boot Webhook(`/internal/v1/**`)은 공유 시크릿 헤더 `X-Internal-Secret`으로 인증한다. 값은 양쪽 환경 변수(`INTERNAL_API_SECRET`)로 주입하며 불일치 시 401을 반환한다. Spring Boot \-\> FastAPI 호출은 내부 네트워크 신뢰를 전제로 한다.

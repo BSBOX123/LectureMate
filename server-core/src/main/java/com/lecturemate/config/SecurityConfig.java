@@ -112,6 +112,10 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/v1/auth/**")
                     .permitAll()
+                    // WebSocket 은 브라우저가 Authorization 헤더를 붙일 수 없어
+                    // 핸들러가 쿼리 파라미터 토큰을 직접 검증한다 (SPEC §2.1-2)
+                    .requestMatchers("/ws/**")
+                    .permitAll()
                     .anyRequest()
                     .authenticated())
         .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))

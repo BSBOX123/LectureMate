@@ -27,12 +27,23 @@ class Settings(BaseSettings):
     spring_boot_webhook_url: str = "http://localhost:8080/internal/v1"
 
     # Models
+    # 배치 정밀 전사용 (SPEC §2.2-2)
     whisper_model_name: str = "large-v3"
+    # 실시간 프리뷰 자막용. 작은 모델이어야 3~5초 청크를 실시간으로 따라갈 수 있다 (SPEC §4.2)
+    whisper_realtime_model_name: str = "base"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
+    # None 이면 자동 감지. 매 청크마다 감지하면 느려서 기본은 한국어로 고정한다
+    whisper_language: str | None = "ko"
     embedding_model_name: str = "BAAI/bge-m3"
     # 기본 false: 모델 다운로드(약 2GB)와 CPU 추론 비용 때문에 로컬에서는 꺼 둔다
     embedding_enabled: bool = False
     # 모델 가중치 캐시 경로. None 이면 각 라이브러리(HuggingFace) 기본 캐시 경로 사용
     model_cache_dir: Path | None = None
+
+    # 실시간 오디오 (SPEC §2.1-2: PCM 16kHz 모노 16bit LE, 3~5초 단위)
+    audio_sample_rate: int = 16000
+    realtime_chunk_seconds: float = 3.0
 
     # LLM (Ollama / vLLM OpenAI 호환 엔드포인트)
     llm_backend_url: str = "http://localhost:11434/v1"

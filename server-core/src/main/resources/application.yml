@@ -37,6 +37,9 @@ lecturemate:
     refresh-token-ttl: 14d
     # 운영(HTTPS)에서는 true
     refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
+  audio:
+    # SPEC §2.1-2: 브라우저는 16kHz 모노 16bit LE PCM 을 보낸다
+    sample-rate: 16000
   internal:
     secret: ${INTERNAL_API_SECRET:local-dev-internal-secret}
   web-client-origin: ${WEB_CLIENT_ORIGIN:http://localhost:3000}

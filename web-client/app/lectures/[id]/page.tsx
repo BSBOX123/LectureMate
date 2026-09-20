@@ -31,6 +31,7 @@ export default function LectureDashboardPage() {
   );
 
   const [reloadKey, setReloadKey] = useState(0);
+  const [recording, setRecording] = useState(false);
 
   useEffect(() => {
     if (!Number.isFinite(lectureId)) {
@@ -47,14 +48,17 @@ export default function LectureDashboardPage() {
     };
   }, [lectureId, reloadKey]);
 
-  // PDF 파싱이 끝날 때까지(PROCESSING) 상태를 다시 확인한다
+  // 상태가 바뀌는 동안(파싱 중, 녹음 중) 주기적으로 다시 확인한다.
+  // 서버가 RECORDING 으로 바꾸는 시점이 WebSocket open 직후라 한 번만 조회하면 놓칠 수 있다.
   useEffect(() => {
-    if (lecture?.status !== "PROCESSING") {
+    const inProgress =
+      recording || lecture?.status === "PROCESSING" || lecture?.status === "RECORDING";
+    if (!inProgress) {
       return;
     }
     const timer = setInterval(() => setReloadKey((key) => key + 1), 2000);
     return () => clearInterval(timer);
-  }, [lecture?.status]);
+  }, [lecture?.status, recording]);
 
   // PDF 는 인증이 필요하므로 blob URL 로 받아 둔다
   useEffect(() => {
@@ -83,7 +87,14 @@ export default function LectureDashboardPage() {
             <span className="ml-2 text-xs font-normal text-zinc-500">{lecture.status}</span>
           )}
         </h1>
-        <AudioRecorder lectureId={lectureId} />
+        <AudioRecorder
+          lectureId={lectureId}
+          onRecordingStarted={() => setRecording(true)}
+          onRecordingFinished={() => {
+            setRecording(false);
+            setReloadKey((key) => key + 1);
+          }}
+        />
       </header>
       <main className="grid flex-1 grid-cols-[12rem_1fr_22rem] gap-2 overflow-hidden p-2">
         <SlideTimeline
