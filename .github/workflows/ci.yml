@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  server-core:
+    name: Spring Boot 테스트
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lecturemate_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      # 테스트 DB 스키마는 Flyway(V1__init_schema.sql)가 만든다
+      - name: 테스트 실행
+        working-directory: server-core
+        run: ./gradlew --no-daemon test
+
+  ai-engine:
+    name: FastAPI 테스트
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: lecturemate_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: 의존성 설치
+        working-directory: ai-engine
+        run: pip install -r requirements.txt
+      # FastAPI 테스트는 Spring 없이 도는 대신 스키마가 필요해 마이그레이션 SQL 을 직접 적용한다
+      - name: 테스트 DB 스키마 적용
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d lecturemate_test \
+            -f server-core/src/main/resources/db/migration/V1__init_schema.sql
+          psql -h localhost -U postgres -d lecturemate_test \
+            -f server-core/src/main/resources/db/migration/V2__lectures_user_index.sql
+      - name: 테스트 실행
+        working-directory: ai-engine
+        # 모델 다운로드를 피하기 위해 임베딩은 꺼진 상태로 돈다 (tests/conftest.py)
+        run: python -m pytest -q
+
+  web-client:
+    name: Next.js 검사
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web-client/pnpm-lock.yaml
+      - name: 의존성 설치
+        working-directory: web-client
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        working-directory: web-client
+        run: pnpm lint
+      - name: 타입 검사
+        working-directory: web-client
+        run: pnpm exec tsc --noEmit
+      - name: 단위 테스트
+        working-directory: web-client
+        run: pnpm test
+      - name: 빌드
+        working-directory: web-client
+        run: pnpm build

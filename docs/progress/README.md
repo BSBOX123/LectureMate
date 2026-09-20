@@ -18,9 +18,10 @@
 | 10 | 배치 정밀 전사 (녹음 종료 → 분석 → 완료 Webhook) | 완료 | `5db8473` | [step-10-batch-transcription.md](step-10-batch-transcription.md) |
 | 11 | 슬라이드-음성 정렬 (Monotonic DP), 임베딩 활성화 | 완료 | `c3dc8c8` | [step-11-alignment.md](step-11-alignment.md) |
 | 12 | 자동 필기 생성 (LLM) + 주석 조회 API | 완료 | `308eb45` | [step-12-annotations.md](step-12-annotations.md) |
-| 13 | RAG 질의응답 (하이브리드 검색 + SSE) | 완료 (검토 대기) | - | [step-13-rag-chat.md](step-13-rag-chat.md) |
+| 13 | RAG 질의응답 (하이브리드 검색 + SSE) | 완료 | `d6a6ff6` | [step-13-rag-chat.md](step-13-rag-chat.md) |
+| 14 | 배포 준비 (Docker 이미지, Nginx, CI) | 완료 (검토 대기) | - | [step-14-deployment.md](step-14-deployment.md) |
 
-**SPEC에 정의된 핵심 기능(§2.1-1 ~ §2.1-5)이 모두 구현되었습니다.**
+**SPEC에 정의된 핵심 기능(§2.1-1 ~ §2.1-5)이 모두 구현되었습니다.** 배포 절차는 [deploy.md](../deploy.md) 참고.
 
 ## 주요 결정 기록
 
@@ -61,6 +62,9 @@
 | 2026-09-20 | 하이라이트는 같은 줄 연속 단어만 병합 + 중복 제거 | 전부 병합하면 제목·본문을 아우르는 거대한 상자가 생김 (화면 검증에서 발견) | Step 12 |
 | 2026-09-20 | 채팅 SSE 형식 정의: citations → token → done (SPEC §2.1-5) | 출처를 먼저 보내면 답변 생성 중에도 뱃지를 표시할 수 있음 | Step 13 |
 | 2026-09-20 | Spring Boot 는 SSE 를 해석하지 않고 바이트 그대로 중계 | 형식이 바뀌어도 중계 코드 수정 불필요 | Step 13 |
+| 2026-09-20 | 배포는 **GPU EC2 1대에 전부** (postgres/ollama/ai-engine/server-core/web-client/nginx) | 사용자 선택. 같은 볼륨을 공유해 파일 경로 전달 방식 유지 가능 → S3 불필요 | Step 14 |
+| 2026-09-20 | 프론트도 같은 서버 + Nginx | 도메인이 같아 CORS·Refresh 쿠키 설정이 단순 | Step 14 |
+| 2026-09-20 | GitHub Actions CI (모듈 3개 병렬 테스트) | 모델 다운로드 없이 80개 테스트를 돌릴 수 있는 구조 | Step 14 |
 
 ## 미결 질문
 
@@ -83,7 +87,9 @@
 - [ ] 강의 삭제 API와 파일 정리 정책이 없음 (Step 6)
 - [ ] 업로드 실패(FAILED) 시 재시도 방법이 없음 (Step 6)
 - [ ] 브라우저 e2e 스크립트를 저장소에 포함할지 (스크래치패드가 정리되어 현재는 없음) (Step 7)
-- [ ] 배포 설계: Dockerfile, CI/CD, 시크릿 관리, HTTPS, DB 운영 위치, 파일 저장소(S3 여부) — RAG 완성 후 착수 예정 (Step 8)
+- [x] ~~배포 설계~~ → GPU EC2 1대 구성, Dockerfile/compose/Nginx/CI 준비 완료 (Step 14)
+- [ ] EC2 에서 `ai-engine` CUDA 이미지 첫 빌드·GPU 인식 검증 (Step 14)
+- [ ] CD(자동 배포), 모니터링/로그 수집, 서비스 헬스체크 (Step 14)
 - [ ] 첫 화면에서 `/auth/refresh` 401 콘솔 오류가 보임 (세션 없을 때 정상 동작이지만 노이즈) (Step 7)
 - [ ] 녹음 중 네트워크 끊김 시 재연결 로직 없음 (Step 9)
 - [ ] 장시간 녹음 시 PCM 용량(시간당 약 115MB) 관리 정책 필요 (Step 9)
