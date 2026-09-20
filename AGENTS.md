@@ -22,7 +22,7 @@
 - Working Directory: `./web-client`
 - Install & Run: `pnpm install && pnpm dev`
 - Build: `pnpm build`
-- Style: Next.js 14 App Router, Tailwind CSS, Any 타입 금지, Functional Component 사용
+- Style: Next.js 16 App Router, Tailwind CSS, Any 타입 금지, Functional Component 사용
 
 ### 3. AI Engine (Python / FastAPI)
 - Working Directory: `./ai-engine`
