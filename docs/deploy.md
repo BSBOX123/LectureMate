@@ -1,7 +1,8 @@
 # 배포 가이드
 
-> **현재 선택한 구성: 로컬 우선 (2026-09-20)**
+> **현재 선택한 구성: A안 — 전부 로컬 (2026-09-20 확정)**
 >
+> EC2 배포는 하지 않습니다. 개발도 시연도 Mac 한 대에서 실행합니다.
 > AI 모델은 개발자 Mac에서 돌립니다. 측정 결과 Mac 네이티브 Ollama가 9.1 tok/s(슬라이드 1장 18초)로 실용적인 반면, GPU EC2는 시간당 1.2~1.5달러가 듭니다. 아래 "부록: 로컬 우선 구성"을 먼저 보세요.
 > GPU EC2 구성은 공개 서비스로 확장할 때 쓰는 계획입니다.
 
@@ -114,7 +115,7 @@ curl -s -o /dev/null -w "%{http_code}\n" https://도메인/api/v1/users/me   # 4
 
 # 부록: 로컬 우선 구성 (현재 방식)
 
-## A. 전부 로컬 (지금)
+## A. 전부 로컬 (현재 방식, 확정)
 
 ```bash
 brew services start ollama          # Mac GPU(Metal) 사용
@@ -128,7 +129,7 @@ cd web-client && pnpm dev           # http://localhost:3000
 - **모델은 7B를 씁니다.** Mac RAM 16GB에서 14B(약 9GB) + Whisper + bge-m3 + DB + 서버 2개는 빠듯합니다. SPEC 기본값(`qwen2.5:14b-instruct`)과 다르므로 실행 시 `LLM_MODEL_NAME`으로 지정합니다.
 - **Whisper는 CPU로 돕니다.** faster-whisper(CTranslate2)는 Metal을 지원하지 않습니다. 실시간 프리뷰(base)는 충분하지만, 1시간 강의를 large-v3로 정밀 전사하면 수십 분 걸릴 수 있습니다. 필요하면 `whisper.cpp`나 `mlx-whisper`처럼 Metal을 쓰는 백엔드로 교체를 검토합니다.
 
-## B. 앱만 EC2, AI는 Mac (외부 공개가 필요할 때)
+## B. 앱만 EC2, AI는 Mac (아직 사용하지 않음 — 외부 공개가 필요해지면)
 
 EC2에는 Postgres + Spring Boot + Next.js + Nginx만 올리고, AI 엔진은 Mac에서 실행한 뒤 **Mac이 EC2로 역터널을 엽니다.** 공유기 포트포워딩이 필요 없습니다.
 
