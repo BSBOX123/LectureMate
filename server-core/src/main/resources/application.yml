@@ -24,6 +24,16 @@ server:
   port: 8080
 
 lecturemate:
+  auth:
+    # 운영 환경에서는 반드시 JWT_SECRET 을 주입한다 (HS256, 최소 32바이트)
+    jwt-secret: ${JWT_SECRET:local-dev-secret-key-change-me-please-32b}
+    access-token-ttl: 30m
+    refresh-token-ttl: 14d
+    # 운영(HTTPS)에서는 true
+    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
+  internal:
+    secret: ${INTERNAL_API_SECRET:local-dev-internal-secret}
+  web-client-origin: ${WEB_CLIENT_ORIGIN:http://localhost:3000}
   fastapi:
     base-url: ${FASTAPI_ENGINE_URL:http://localhost:8000}
     connect-timeout: 5s

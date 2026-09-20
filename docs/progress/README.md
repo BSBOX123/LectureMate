@@ -9,8 +9,8 @@
 | 1 | 인프라(Docker Compose) 및 DB 스키마 | 완료 | `91b445c` | [step-1-infra-db.md](step-1-infra-db.md) |
 | 2 | FastAPI `ai-engine` 스캐폴딩 | 완료 | `16bef97` | [step-2-ai-engine.md](step-2-ai-engine.md) |
 | 3 | Spring Boot `server-core` 스캐폴딩 | 완료 | `fbb3153` | [step-3-server-core.md](step-3-server-core.md) |
-| 4 | Next.js `web-client` 스캐폴딩 | 완료 (검토 대기) | - | [step-4-web-client.md](step-4-web-client.md) |
-| 5 (예정) | 인증 (Spring Security + JWT, SPEC 회원가입/로그인 API 정의) | 대기 | - | - |
+| 4 | Next.js `web-client` 스캐폴딩 | 완료 | `8e486ed` | [step-4-web-client.md](step-4-web-client.md) |
+| 5 | 인증 (Spring Security + JWT, 로그인/회원가입 화면) | 완료 (검토 대기) | - | [step-5-auth.md](step-5-auth.md) |
 
 ## 주요 결정 기록
 
@@ -29,6 +29,10 @@
 | 2026-09-20 | 원본 파일 저장은 **현행 유지** (Spring Boot 로컬 디스크, `STORAGE_LOCAL_PATH`). 데스크톱 앱으로 확장할 때 D안(로컬 동기화 폴더) 재검토 | 사용자 결정. 비용 분석 결과 PDF와 음성은 S3 기준 저렴하고, 문제는 영상. 대안(A: S3 + 영상 로컬, B: 로컬 우선, C: Google Drive, D: 데스크톱 앱)은 필요할 때 다시 검토 | 전체 |
 | 2026-09-20 | Next.js 14 → **16.3.5** | 14는 2025-10-26, 15는 2026-10-21 지원 종료. SPEC과 AGENTS도 16으로 수정 | Step 4 |
 | 2026-09-20 | pnpm은 corepack으로 설치 (`~/.local/bin`) | 사용자 선택. `packageManager` 필드로 버전 고정 | Step 4 |
+| 2026-09-20 | JWT는 Access(30분) + Refresh(14일, httpOnly 쿠키, DB 저장 및 회전) | 사용자 선택. Access 탈취 피해 최소화, 로그아웃/폐기 가능 | Step 5 |
+| 2026-09-20 | 내부 Webhook은 `X-Internal-Secret` 공유 시크릿 헤더 | 사용자 선택. 구현이 단순하고 EC2 분리 배포에도 안전 | Step 5 |
+| 2026-09-20 | JWT는 Spring Security 내장(Nimbus) 사용, 외부 라이브러리 미사용 | 의존성 및 버전 관리 단순화 | Step 5 |
+| 2026-09-20 | Access Token은 프론트 메모리에만 보관, 새로고침 시 refresh로 복구 | localStorage는 XSS 취약 | Step 5 |
 
 ## 미결 질문
 
@@ -37,9 +41,13 @@
 - [x] ~~PDF 업로드 최대 크기~~ → 50MB
 - [x] ~~로컬 파일 저장 경로~~ → `~/lecturemate/storage`
 - [ ] SPEC §4.1에 `LectureTranscriptRepository`가 없음. 필요 여부 (기능 구현 단계에서 결정)
-- [ ] 인증 단계: SPEC §2.1에 회원가입과 로그인 API 정의 필요
+- [x] ~~인증 API SPEC 정의~~ → §2.1-6 ~ §2.1-10 추가 완료
 - [x] ~~원본 파일 저장 전략~~ → 현행 유지, 앱 확장 시 D안 재검토
 - [ ] `SlideTimeline`의 데이터(슬라이드별 발화 분량, 시험 힌트 유무)를 가져올 API가 SPEC §2.1에 없음 (Step 4)
 - [ ] §2.1-5 채팅 SSE의 이벤트 형식(토큰 청크, citations 구조)이 정의되지 않음 (Step 4)
-- [ ] 프론트엔드가 쓸 Spring Boot API 주소 환경 변수 이름 (예: `NEXT_PUBLIC_API_BASE_URL`)과 CORS 설정 (Step 4)
+- [x] ~~프론트엔드 API 주소 환경 변수와 CORS~~ → `NEXT_PUBLIC_API_BASE_URL`, `WEB_CLIENT_ORIGIN` (Step 5)
 - [ ] 강의 목록과 PDF 업로드 화면: SPEC §4.3에는 대시보드만 있음 (Step 4)
+- [ ] `/ws/v1/**` WebSocket 인증 방식(브라우저는 헤더를 못 붙임 → 쿼리 파라미터 토큰 등): WS 핸들러 구현 시 결정 (Step 5)
+- [ ] 로그인 상태가 아닐 때 `/lectures/[id]` 접근 차단(라우트 가드) 미구현 (Step 5)
+- [ ] `ai-engine`에 `INTERNAL_API_SECRET` 반영 필요 (Webhook 호출 코드 작성 시) (Step 5)
+- [ ] DB 스키마 변경 방식: 현재는 `init.sql` + 볼륨 재생성. 데이터가 쌓이기 전에 Flyway 도입 검토 (Step 5)

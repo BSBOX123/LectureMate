@@ -93,6 +93,37 @@
    * Request: `{ "question": "다익스트라 알고리즘에서 왜 음수 가중치를 쓸 수 없다고 하셨나요?" }`  
    * Response: Server-Sent Events (data: chunk tokens \+ citations)
 
+6. **회원가입**  
+   * `POST /api/v1/auth/signup`  
+   * Request: `{ "email": "student@example.com", "password": "...", "name": "김학생" }`  
+   * 제약: email 형식/중복 불가, password 8자 이상, name 1\~100자  
+   * Response (201 Created): `{ "userId": 1, "email": "student@example.com", "name": "김학생" }`  
+   * 오류: 409 Conflict (이메일 중복), 400 Bad Request (형식 오류)  
+7. **로그인**  
+   * `POST /api/v1/auth/login`  
+   * Request: `{ "email": "student@example.com", "password": "..." }`  
+   * Response (200 OK): `{ "accessToken": "eyJ...", "tokenType": "Bearer", "expiresIn": 1800 }`  
+   * Refresh Token은 응답 본문이 아니라 httpOnly 쿠키(`refreshToken`, Path=/api/v1/auth, SameSite=Lax, 운영 환경 Secure)로 내려간다  
+   * 오류: 401 Unauthorized (이메일 또는 비밀번호 불일치)  
+8. **Access Token 재발급**  
+   * `POST /api/v1/auth/refresh`  
+   * Request: 본문 없음. `refreshToken` 쿠키 사용  
+   * Response (200 OK): 로그인과 동일 형식. Refresh Token은 회전(rotation)되어 새 쿠키로 교체된다  
+   * 오류: 401 Unauthorized (쿠키 없음/만료/이미 폐기됨)  
+9. **로그아웃**  
+   * `POST /api/v1/auth/logout`  
+   * Refresh Token을 폐기하고 쿠키를 만료시킨다  
+   * Response (204 No Content)  
+10. **내 정보 조회**  
+    * `GET /api/v1/users/me`  
+    * Request Header: `Authorization: Bearer {accessToken}`  
+    * Response (200 OK): `{ "userId": 1, "email": "student@example.com", "name": "김학생" }`
+
+* **인증 규칙**  
+  * `/api/v1/auth/**`를 제외한 모든 `/api/v1/**`와 `/ws/v1/**`는 Access Token이 필요하다 (`Authorization: Bearer {accessToken}`)  
+  * Access Token은 HS256 서명 JWT, 유효기간 30분, `sub`에 userId. Refresh Token은 14일  
+  * 강의 등 사용자 소유 리소스는 토큰의 userId와 `lectures.user_id`가 일치해야 접근 가능 (불일치 시 404 Not Found)
+
 ## **2.2 Spring Boot \<-\> FastAPI Internal API**
 
 1. **PDF 슬라이드 텍스트 및 BBox 추출 / 임베딩**  
@@ -126,6 +157,8 @@
    * 강의 녹음 세션당 1개 연결을 유지 (Spring Boot가 클라이언트 WS 세션 시작 시 연결, 녹음 종료 시 해제)  
    * Spring Boot \-\> FastAPI: 클라이언트에서 받은 Binary Audio Chunks를 그대로 전달 (§2.1-2와 동일 포맷)  
    * FastAPI \-\> Spring Boot: §2.1-2의 `TRANSCRIPT_PREVIEW` JSON 이벤트와 동일한 포맷 (Spring Boot는 클라이언트로 그대로 중계)
+
+* **내부 API 인증:** FastAPI \-\> Spring Boot Webhook(`/internal/v1/**`)은 공유 시크릿 헤더 `X-Internal-Secret`으로 인증한다. 값은 양쪽 환경 변수(`INTERNAL_API_SECRET`)로 주입하며 불일치 시 401을 반환한다. Spring Boot \-\> FastAPI 호출은 내부 네트워크 신뢰를 전제로 한다.
 
 # **3\. Data Model & DB Schema (PostgreSQL 16 \+ pgvector)**
 
@@ -166,6 +199,46 @@ CREATE TABLE users (
 &nbsp;
 
 );
+
+&nbsp;
+
+\-- 0\-1\. Refresh Token (로그아웃/회전 시 폐기하기 위해 서버에 보관)
+
+&nbsp;
+
+CREATE TABLE refresh\_tokens (
+
+&nbsp;
+
+&nbsp;&nbsp;&nbsp;&nbsp;id BIGSERIAL PRIMARY KEY,
+
+&nbsp;
+
+&nbsp;&nbsp;&nbsp;&nbsp;user\_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+
+&nbsp;
+
+&nbsp;&nbsp;&nbsp;&nbsp;token\_hash VARCHAR(255) NOT NULL UNIQUE, \-- 원문 대신 SHA-256 해시 저장
+
+&nbsp;
+
+&nbsp;&nbsp;&nbsp;&nbsp;expires\_at TIMESTAMP WITH TIME ZONE NOT NULL,
+
+&nbsp;
+
+&nbsp;&nbsp;&nbsp;&nbsp;revoked\_at TIMESTAMP WITH TIME ZONE,
+
+&nbsp;
+
+&nbsp;&nbsp;&nbsp;&nbsp;created\_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+&nbsp;
+
+);
+
+&nbsp;
+
+CREATE INDEX idx\_refresh\_tokens\_user ON refresh\_tokens(user\_id);
 
 &nbsp;
 
@@ -414,10 +487,14 @@ CREATE INDEX idx\_annotations\_lecture\_page ON slide\_annotations(lecture\_id, 
 * **Spring Boot (`application.yml`)**  
   * `SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/lecturemate`  
   * `FASTAPI_ENGINE_URL=http://localhost:8000`  
-  * `STORAGE_LOCAL_PATH=/data/lecturemate/storage` (서버 배포 기준. 로컬 개발 기본값은 `~/lecturemate/storage`)
+  * `STORAGE_LOCAL_PATH=/data/lecturemate/storage` (서버 배포 기준. 로컬 개발 기본값은 `~/lecturemate/storage`)  
+  * `JWT_SECRET=...` (HS256 서명 키, 최소 32바이트)  
+  * `INTERNAL_API_SECRET=...` (FastAPI Webhook 공유 시크릿)  
+  * `WEB_CLIENT_ORIGIN=http://localhost:3000` (CORS 허용 Origin)
 * **FastAPI (`.env`)**  
   * `DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/lecturemate`  
   * `SPRING_BOOT_WEBHOOK_URL=http://localhost:8080/internal/v1`  
+  * `INTERNAL_API_SECRET=...` (Spring Boot와 동일한 값)  
   * `WHISPER_MODEL_NAME=large-v3`  
   * `EMBEDDING_MODEL_NAME=BAAI/bge-m3`  
   * `LLM_BACKEND_URL=http://localhost:11434/v1` (Ollama/vLLM)  
