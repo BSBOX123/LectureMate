@@ -11,6 +11,12 @@
 - 스키마 변경은 기존 마이그레이션 파일 수정 금지. 새 파일 `V{n}__설명.sql` 을 추가할 것 (볼륨 삭제 불필요).
 - 통합 테스트는 전용 DB `lecturemate_test` 를 사용한다 (`db/init-test-db.sql`). 개발용 DB 를 가리키게 바꾸지 말 것 — 테스트가 데이터를 삭제한다.
 
+## 로컬 실행 (A안: 전부 로컬)
+- Desktop 의 `LectureMate 시작.app` 아이콘으로 서비스 5개 일괄 기동 (또는 `scripts/lecturemate.sh start`)
+- 중지: `LectureMate 중지.app` 또는 `scripts/lecturemate.sh stop`
+- 앱 재빌드: `scripts/build-apps.sh`
+- LLM 은 Mac 네이티브 Ollama + `qwen2.5:7b-instruct` 사용 (SPEC 기본값 14b 는 로컬 RAM 초과)
+
 ## Build & Test Commands by Module
 
 ### 1. Backend (Spring Boot)

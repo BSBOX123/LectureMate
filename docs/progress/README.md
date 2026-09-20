@@ -20,6 +20,7 @@
 | 12 | 자동 필기 생성 (LLM) + 주석 조회 API | 완료 | `308eb45` | [step-12-annotations.md](step-12-annotations.md) |
 | 13 | RAG 질의응답 (하이브리드 검색 + SSE) | 완료 | `d6a6ff6` | [step-13-rag-chat.md](step-13-rag-chat.md) |
 | 14 | 배포 준비 (Docker 이미지, Nginx, CI) | 완료 | `f793455` | [step-14-deployment.md](step-14-deployment.md) |
+| 15 | 데스크톱 실행 앱 (서비스 일괄 시작/중지) | 완료 (검토 대기) | - | [step-15-launcher.md](step-15-launcher.md) |
 
 > GitHub: [BSBOX123/LectureMate](https://github.com/BSBOX123/LectureMate) — main 푸시 완료, CI 3개 잡 통과
 
@@ -69,6 +70,8 @@
 | 2026-09-20 | GitHub Actions CI (모듈 3개 병렬 테스트) | 모델 다운로드 없이 80개 테스트를 돌릴 수 있는 구조 | Step 14 |
 | 2026-09-20 | **A안 확정: 전부 로컬 실행. EC2 배포하지 않음** | Mac 네이티브 Ollama 9.1 tok/s 로 실용적. GPU EC2 는 시간당 1.2~1.5달러. 만든 인스턴스는 t3.micro(RAM 1GB, GPU 없음)라 사용 불가 | Step 14 |
 | 2026-09-20 | EC2 보안 그룹 SSH 22번: 0.0.0.0/0 → 내 IP(/32) | 전 세계 개방 상태였음. 자동화된 공격 시도 차단 | Step 14 |
+| 2026-09-20 | **EC2 인스턴스(t3.micro) 종료(삭제)** | A안 확정으로 당분간 불필요. 필요하면 다시 만들면 됨 | Step 14 |
+| 2026-09-20 | 실행은 Desktop 아이콘(AppleScript 앱)으로 | 터미널 4개를 여는 대신 아이콘 하나로 전체 기동 + 브라우저 열기 | Step 15 |
 
 ## 미결 질문
 
@@ -93,7 +96,7 @@
 - [ ] 브라우저 e2e 스크립트를 저장소에 포함할지 (스크래치패드가 정리되어 현재는 없음) (Step 7)
 - [x] ~~배포 설계~~ → GPU EC2 1대 구성, Dockerfile/compose/Nginx/CI 준비 완료 (Step 14)
 - [ ] EC2 에서 `ai-engine` CUDA 이미지 첫 빌드·GPU 인식 검증 (GPU 인스턴스 확보 후) (Step 14)
-- [ ] (보류) 외부 공개가 필요해지면: EC2 t3.small 이상 + 탄력적 IP + 80/443 개방 + Mac 역터널, 또는 GPU 인스턴스 (Step 14)
+- [ ] (보류) EC2 는 삭제됨. 외부 공개가 필요해지면 다시 생성:: EC2 t3.small 이상 + 탄력적 IP + 80/443 개방 + Mac 역터널, 또는 GPU 인스턴스 (Step 14)
 - [ ] Whisper 를 Metal 지원 백엔드(whisper.cpp / mlx-whisper)로 교체할지 — 배치 전사 속도 문제 (Step 14)
 - [ ] CD(자동 배포), 모니터링/로그 수집, 서비스 헬스체크 (Step 14)
 - [ ] 첫 화면에서 `/auth/refresh` 401 콘솔 오류가 보임 (세션 없을 때 정상 동작이지만 노이즈) (Step 7)
