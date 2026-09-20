@@ -1,4 +1,6 @@
+import { parseSseBuffer } from "@/lib/sse";
 import type {
+  Citation,
   LectureResponse,
   PageAnnotationResponse,
   RecordingFinishResponse,
@@ -123,6 +125,57 @@ export const lectureApi = {
     }),
 
   list: () => request<LectureResponse[]>("/api/v1/lectures"),
+
+  /**
+   * §2.1-5 RAG 질의응답. SSE 라 fetch 스트림을 직접 읽는다.
+   * citations → token... → done 순서로 콜백을 호출한다.
+   */
+  chat: async (
+    lectureId: number,
+    question: string,
+    handlers: {
+      onCitations: (citations: Citation[]) => void;
+      onToken: (text: string) => void;
+      onDone: (finishReason: string) => void;
+    },
+    signal?: AbortSignal,
+  ) => {
+    const response = await fetch(`${BASE_URL}/api/v1/lectures/${lectureId}/chat`, {
+      method: "POST",
+      credentials: "include",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({ question }),
+    });
+    if (!response.ok || !response.body) {
+      throw new ApiError(response.status, "답변을 받지 못했습니다.");
+    }
+
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += value;
+      const { events, rest } = parseSseBuffer(buffer);
+      buffer = rest;
+      for (const event of events) {
+        const payload = JSON.parse(event.data) as Record<string, unknown>;
+        if (event.event === "citations") {
+          handlers.onCitations(payload.citations as Citation[]);
+        } else if (event.event === "token") {
+          handlers.onToken(payload.text as string);
+        } else if (event.event === "done") {
+          handlers.onDone(payload.finishReason as string);
+        }
+      }
+    }
+  },
 
   /** §2.1-4 슬라이드 자동 필기. 분석 전이면 404 */
   annotations: (lectureId: number, pageNumber: number) =>

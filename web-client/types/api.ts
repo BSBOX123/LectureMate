@@ -58,3 +58,12 @@ export interface PageAnnotationResponse {
 export interface ChatRequest {
   question: string;
 }
+
+/** §2.1-5 citations 이벤트의 근거 한 건 */
+export interface Citation {
+  source: "SLIDE" | "TRANSCRIPT";
+  pageNumber: number | null;
+  snippet: string;
+  /** TRANSCRIPT 에만 있다 */
+  startTimeMs?: number | null;
+}

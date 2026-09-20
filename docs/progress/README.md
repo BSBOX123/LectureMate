@@ -17,7 +17,10 @@
 | 9 | 녹음 + 실시간 자막 (WebSocket + Whisper) | 완료 | `ba67ee8` | [step-9-recording.md](step-9-recording.md) |
 | 10 | 배치 정밀 전사 (녹음 종료 → 분석 → 완료 Webhook) | 완료 | `5db8473` | [step-10-batch-transcription.md](step-10-batch-transcription.md) |
 | 11 | 슬라이드-음성 정렬 (Monotonic DP), 임베딩 활성화 | 완료 | `c3dc8c8` | [step-11-alignment.md](step-11-alignment.md) |
-| 12 | 자동 필기 생성 (LLM) + 주석 조회 API | 완료 (검토 대기) | - | [step-12-annotations.md](step-12-annotations.md) |
+| 12 | 자동 필기 생성 (LLM) + 주석 조회 API | 완료 | `308eb45` | [step-12-annotations.md](step-12-annotations.md) |
+| 13 | RAG 질의응답 (하이브리드 검색 + SSE) | 완료 (검토 대기) | - | [step-13-rag-chat.md](step-13-rag-chat.md) |
+
+**SPEC에 정의된 핵심 기능(§2.1-1 ~ §2.1-5)이 모두 구현되었습니다.**
 
 ## 주요 결정 기록
 
@@ -56,6 +59,8 @@
 | 2026-09-20 | 정렬은 단조성 제약 DP + 전환 패널티 0.05 | 강의는 슬라이드를 되돌아가지 않음. 유사도만 쓰면 문장마다 페이지가 튐 | Step 11 |
 | 2026-09-20 | **Mac 로컬 LLM 은 네이티브 Ollama**(brew), Docker Ollama 미사용 | 컨테이너 0.3 tok/s vs 네이티브 9.1 tok/s (약 30배). compose 서비스는 Linux/EC2 용으로 유지 | Step 12 |
 | 2026-09-20 | 하이라이트는 같은 줄 연속 단어만 병합 + 중복 제거 | 전부 병합하면 제목·본문을 아우르는 거대한 상자가 생김 (화면 검증에서 발견) | Step 12 |
+| 2026-09-20 | 채팅 SSE 형식 정의: citations → token → done (SPEC §2.1-5) | 출처를 먼저 보내면 답변 생성 중에도 뱃지를 표시할 수 있음 | Step 13 |
+| 2026-09-20 | Spring Boot 는 SSE 를 해석하지 않고 바이트 그대로 중계 | 형식이 바뀌어도 중계 코드 수정 불필요 | Step 13 |
 
 ## 미결 질문
 
@@ -67,7 +72,7 @@
 - [x] ~~인증 API SPEC 정의~~ → §2.1-6 ~ §2.1-10 추가 완료
 - [x] ~~원본 파일 저장 전략~~ → 현행 유지, 앱 확장 시 D안 재검토
 - [ ] `SlideTimeline`의 데이터(슬라이드별 발화 분량, 시험 힌트 유무)를 가져올 API가 SPEC §2.1에 없음 (Step 4, 12)
-- [ ] §2.1-5 채팅 SSE의 이벤트 형식(토큰 청크, citations 구조)이 정의되지 않음 (Step 4)
+- [x] ~~§2.1-5 채팅 SSE 이벤트 형식~~ → citations/token/done 정의 및 구현 (Step 13)
 - [x] ~~프론트엔드 API 주소 환경 변수와 CORS~~ → `NEXT_PUBLIC_API_BASE_URL`, `WEB_CLIENT_ORIGIN` (Step 5)
 - [x] ~~강의 목록과 PDF 업로드 화면~~ → `/lectures`, `/lectures/new` 추가, SPEC §2.1-11·12 반영 (Step 6)
 - [x] ~~`/ws/v1/**` WebSocket 인증 방식~~ → 쿼리 파라미터 토큰 + 핸들러 검증 (Step 9)
@@ -88,4 +93,7 @@
 - [ ] 정렬 품질 평가 수단 없음. 전환 패널티(0.05)는 실제 강의 데이터로 조정 필요 (Step 11)
 - [ ] 슬라이드 45장이면 LLM 호출도 45번(로컬 7B 약 13분). 병렬화/진행률 표시 검토 (Step 12)
 - [ ] 시험 힌트가 잘 안 잡힘 — 프롬프트 조정 여지 (Step 12)
+- [ ] 채팅이 이전 질문 맥락을 이어받지 않음 (매 질문 독립) (Step 13)
+- [ ] 같은 쪽 발화가 여러 건이면 출처 뱃지가 중복 표시됨 (Step 13)
+- [ ] RAG 검색 품질 평가 수단 없음 (top_k=5 고정) (Step 13)
 - [ ] Docker Ollama 볼륨(모델 6.6GB) 정리 여부 (Step 12)

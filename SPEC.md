@@ -93,7 +93,11 @@
 5. **강의 맞춤형 RAG Q\&A (SSE 스트리밍)**  
    * `POST /api/v1/lectures/{lectureId}/chat`  
    * Request: `{ "question": "다익스트라 알고리즘에서 왜 음수 가중치를 쓸 수 없다고 하셨나요?" }`  
-   * Response: Server-Sent Events (data: chunk tokens \+ citations)
+   * Response: `text/event-stream`. 이벤트 순서는 citations → token(여러 번) → done 이며, FastAPI(§2.2-3)가 보내는 형식을 Spring Boot 가 그대로 중계한다  
+     * `event: citations` / `data: { "citations": [ { "source": "SLIDE" | "TRANSCRIPT", "pageNumber": 5, "snippet": "...", "startTimeMs": 15000 } ] }`  
+       (`startTimeMs` 는 TRANSCRIPT 에만 있음. 답변 생성 전에 먼저 보내 출처 뱃지를 즉시 표시할 수 있게 한다)  
+     * `event: token` / `data: { "text": "다익" }` — 생성되는 토큰 조각  
+     * `event: done` / `data: { "finishReason": "stop" | "error" }`
 
 6. **회원가입**  
    * `POST /api/v1/auth/signup`  
@@ -151,8 +155,9 @@
    * Response (202 Accepted): `{ "task_id": "batch_101_20260918", "status": "QUEUED" }`  
 3. **RAG 복합 검색 및 응답 생성**  
    * `POST /ai/v1/rag/query`  
-   * Request: `{ "lecture_id": 101, "question": "음수 가중치 관련 교수님 설명", "top_k": 5 }`  
-   * Response: Streaming Response (Server-Sent Events)  
+   * Request: `{ "lecture_id": 101, "question": "음수 가중치 관련 교수님 설명", "top_k": 5 }` (`top_k` 생략 시 5)  
+   * Response: `text/event-stream`. §2.1-5 와 동일한 citations / token / done 이벤트  
+   * 검색은 pgvector 코사인 거리로 `lecture_slides` 와 `lecture_transcripts` 를 각각 조회해 합친다 (하이브리드 컨텍스트)  
 4. **배치 완료 통보 Webhook (FastAPI \-\> Spring Boot)**  
    * `POST /internal/v1/lectures/{lecture_id}/analysis-complete`  
    * Request:{  

@@ -1,7 +1,10 @@
 package com.lecturemate.client;
 
 import com.lecturemate.config.FastApiProperties;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.http.HttpClient;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -46,6 +49,34 @@ public class FastApiClient {
         .body(new AnalyzeBatchRequest(audioPath))
         .retrieve()
         .body(AnalyzeBatchResponse.class);
+  }
+
+  /** SPEC §2.2-3 요청. */
+  public record RagQueryRequest(Long lecture_id, String question, Integer top_k) {}
+
+  /**
+   * RAG SSE 스트림을 그대로 읽어 소비자에게 넘긴다 (SPEC §2.2-3 → §2.1-5 중계).
+   *
+   * <p>이벤트를 해석하지 않고 바이트를 그대로 흘려보내므로, 형식이 바뀌어도 중계는 영향을 받지 않는다.
+   */
+  public void streamRagQuery(Long lectureId, String question, int topK, OutputStream out) {
+    restClient
+        .post()
+        .uri("/ai/v1/rag/query")
+        .accept(MediaType.TEXT_EVENT_STREAM)
+        .body(new RagQueryRequest(lectureId, question, topK))
+        .exchange(
+            (request, response) -> {
+              try (InputStream in = response.getBody()) {
+                byte[] buffer = new byte[1024];
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                  out.write(buffer, 0, read);
+                  out.flush(); // 버퍼링하면 스트리밍 의미가 사라진다
+                }
+              }
+              return null;
+            });
   }
 
   public PdfParseResponse parsePdf(Long lectureId, String pdfPath) {
