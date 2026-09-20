@@ -10,8 +10,14 @@ spring:
       # 강의 PDF 업로드 (POST /api/v1/lectures). 요청 전체는 title 등 다른 파트를 고려해 여유를 둔다.
       max-file-size: 50MB
       max-request-size: 55MB
+  flyway:
+    # 스키마의 주인. 애플리케이션 기동 시 src/main/resources/db/migration 의 마이그레이션을 적용한다.
+    enabled: true
+    # 이미 V1 스키마가 들어 있는 DB(로컬 docker 초기화본)는 V1 적용 완료로 표시하고 V2부터 진행한다.
+    baseline-on-migrate: true
+    baseline-version: 1
   jpa:
-    # 스키마는 db/init.sql 이 관리한다. Hibernate 는 엔티티 매핑이 스키마와 맞는지 검증만 한다.
+    # 스키마는 Flyway 마이그레이션이 관리한다. Hibernate 는 엔티티 매핑이 스키마와 맞는지 검증만 한다.
     hibernate:
       ddl-auto: validate
     open-in-view: false

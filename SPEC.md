@@ -175,6 +175,8 @@
 
 # **3\. Data Model & DB Schema (PostgreSQL 16 \+ pgvector)**
 
+* **스키마 관리:** 아래 스키마는 Flyway 마이그레이션(`server-core/src/main/resources/db/migration/`)이 소유한다. 변경 시 기존 파일을 고치지 말고 새 버전 파일(`V{n}__설명.sql`)을 추가하며, Spring Boot 기동 시 자동 적용된다. Hibernate 는 `ddl-auto: validate` 로 검증만 한다.
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 &nbsp;
