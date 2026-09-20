@@ -19,7 +19,9 @@
 | 11 | 슬라이드-음성 정렬 (Monotonic DP), 임베딩 활성화 | 완료 | `c3dc8c8` | [step-11-alignment.md](step-11-alignment.md) |
 | 12 | 자동 필기 생성 (LLM) + 주석 조회 API | 완료 | `308eb45` | [step-12-annotations.md](step-12-annotations.md) |
 | 13 | RAG 질의응답 (하이브리드 검색 + SSE) | 완료 | `d6a6ff6` | [step-13-rag-chat.md](step-13-rag-chat.md) |
-| 14 | 배포 준비 (Docker 이미지, Nginx, CI) | 완료 (검토 대기) | - | [step-14-deployment.md](step-14-deployment.md) |
+| 14 | 배포 준비 (Docker 이미지, Nginx, CI) | 완료 | `f793455` | [step-14-deployment.md](step-14-deployment.md) |
+
+> GitHub: [BSBOX123/LectureMate](https://github.com/BSBOX123/LectureMate) — main 푸시 완료, CI 3개 잡 통과
 
 **SPEC에 정의된 핵심 기능(§2.1-1 ~ §2.1-5)이 모두 구현되었습니다.** 배포 절차는 [deploy.md](../deploy.md) 참고.
 

@@ -1,7 +1,7 @@
 # Step 14: 배포 준비 (Docker 이미지, Nginx, CI)
 
 - 기간: 2026-09-20
-- 커밋: (검토 후 커밋 예정)
+- 커밋: `f793455`, `131427b`
 - 범위: 세 모듈 Dockerfile, 운영용 compose, Nginx 리버스 프록시, GitHub Actions CI, 배포 가이드
 
 ## 결정한 구성 (사용자 선택)
@@ -47,7 +47,13 @@
 
 `ai-engine` 이미지는 CUDA 베이스라 Mac에서 빌드·실행 의미가 없어 **빌드하지 않았습니다.** EC2에서 첫 빌드 시 확인이 필요합니다.
 
-**CI**: 푸시 후 GitHub Actions 실행 결과로 확인 (아래 "남은 일" 참고)
+**CI (GitHub Actions)**: 커밋 15개를 origin/main 에 푸시하고 실행 결과를 확인했습니다.
+
+| 잡 | 결과 | 시간 |
+|---|---|---|
+| Spring Boot 테스트 | 통과 | 54초 |
+| FastAPI 테스트 | 통과 | 1분 59초 |
+| Next.js 검사 (lint·타입·테스트·빌드) | 통과 | 37초 |
 
 **테스트**: 기존 80개 그대로 통과 (변경 없음)
 
@@ -58,6 +64,7 @@
 | `docker build --check`, `docker buildx` 사용 불가 | OrbStack의 docker CLI에 buildx 플러그인이 없음 (앞서 `docker compose`도 같은 이유로 `docker-compose` 사용) | 실제 빌드로 검증 |
 | 커밋 훅이 `.env.prod.example`을 차단 | 사용자 전역 pre-commit 훅이 `.env`로 시작하는 파일을 막고 `.env.example`만 예외로 둠 | `--no-verify`로 우회하지 않고 `deploy/env.prod.example`로 이름 변경 |
 | 전역 gitignore가 `.env.*`를 무시 | `~/.gitignore_global` 규칙 | 프로젝트 `.gitignore`에 예시 파일 예외 추가 |
+| **CI에서 프론트 타입 검사 실패** (`Cannot find name 'LayoutProps'`) | `PageProps`/`LayoutProps`는 `next typegen`이 `.next/types`에 만드는 전역 타입. 로컬에는 이전 빌드 산출물이 있어 통과했지만 CI에는 없음 | `pnpm typecheck` 스크립트(`next typegen && tsc --noEmit`) 추가. **로컬에서만 통과하던 문제를 CI가 잡아낸 사례** |
 
 ## 남은 일
 
