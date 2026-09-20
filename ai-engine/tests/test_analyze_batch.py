@@ -110,7 +110,8 @@ async def test_accepts_and_stores_transcripts(
     assert rows[0].matched_slide_page is None
 
     assert fake_transcription == [str(audio_file)]
-    assert webhook_calls == [(lecture_id, "READY", 0, 2)]
+    # 슬라이드가 없으면 정렬을 건너뛰므로 매칭 수는 0
+    assert webhook_calls == [(lecture_id, "READY", 0, 0)]
 
 
 async def test_reruns_replace_previous_transcripts(
@@ -127,6 +128,45 @@ async def test_reruns_replace_previous_transcripts(
         )
     ).scalar_one()
     assert count == 2
+
+
+async def test_aligns_segments_to_slides(
+    client, lecture_id, audio_file, fake_transcription, webhook_calls, monkeypatch
+):
+    """슬라이드 임베딩이 있으면 각 세그먼트에 슬라이드 번호가 단조 증가로 붙는다."""
+    await _execute(
+        """
+        INSERT INTO lecture_slides (lecture_id, page_number, slide_text, layout_data, embedding)
+        VALUES (:id, 1, '다익스트라', '[]', :v1), (:id, 2, '벨만 포드', '[]', :v2)
+        """,
+        id=lecture_id,
+        v1=str([1.0] + [0.0] * 1023),
+        v2=str([0.0, 1.0] + [0.0] * 1022),
+    )
+
+    # 첫 세그먼트는 슬라이드 1, 두 번째는 슬라이드 2 와 같은 방향의 벡터
+    def fake_embed(texts):
+        first = [1.0] + [0.0] * 1023
+        second = [0.0, 1.0] + [0.0] * 1022
+        return [first, second][: len(texts)]
+
+    monkeypatch.setattr(audio_router, "embed_texts", fake_embed)
+
+    await client.post(
+        f"/ai/v1/lectures/{lecture_id}/analyze-batch", json={"audio_path": str(audio_file)}
+    )
+
+    rows = (
+        await _execute(
+            "SELECT matched_slide_page, embedding IS NOT NULL AS has_embedding"
+            " FROM lecture_transcripts WHERE lecture_id = :id ORDER BY start_time_ms",
+            id=lecture_id,
+        )
+    ).all()
+    assert [row.matched_slide_page for row in rows] == [1, 2]
+    assert all(row.has_embedding for row in rows)
+    # totalPagesAnalyzed = 매칭된 슬라이드 수, matchedTranscriptSegments = 매칭된 세그먼트 수
+    assert webhook_calls == [(lecture_id, "READY", 2, 2)]
 
 
 async def test_missing_audio_file_returns_404(client, lecture_id):

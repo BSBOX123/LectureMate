@@ -38,8 +38,9 @@ class Settings(BaseSettings):
     # None 이면 자동 감지. 매 청크마다 감지하면 느려서 기본은 한국어로 고정한다
     whisper_language: str | None = "ko"
     embedding_model_name: str = "BAAI/bge-m3"
-    # 기본 false: 모델 다운로드(약 2GB)와 CPU 추론 비용 때문에 로컬에서는 꺼 둔다
-    embedding_enabled: bool = False
+    # 슬라이드-음성 정렬(§4.2)과 RAG 검색(§2.2-3)에 필요하다.
+    # 끄면 임베딩과 정렬을 건너뛴다 (모델 약 2GB 다운로드를 피하고 싶을 때)
+    embedding_enabled: bool = True
     # 모델 가중치 캐시 경로. None 이면 각 라이브러리(HuggingFace) 기본 캐시 경로 사용
     model_cache_dir: Path | None = None
 

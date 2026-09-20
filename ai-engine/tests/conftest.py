@@ -13,3 +13,7 @@ os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://postgres:postgres@localhost:5432/lecturemate_test",
 )
+
+# 테스트는 bge-m3 모델(약 2GB)을 내려받지 않는다.
+# 임베딩이 필요한 테스트는 embed_texts 를 직접 대체한다.
+os.environ.setdefault("EMBEDDING_ENABLED", "false")

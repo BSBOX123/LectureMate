@@ -173,7 +173,7 @@
    * Spring Boot \-\> FastAPI: 클라이언트에서 받은 Binary Audio Chunks를 그대로 전달 (§2.1-2와 동일한 16kHz 모노 16bit LE PCM). FastAPI 는 3초 분량이 모일 때마다 전사한다  
    * FastAPI \-\> Spring Boot: §2.1-2의 `TRANSCRIPT_PREVIEW` JSON 이벤트와 동일한 포맷 (Spring Boot는 클라이언트로 그대로 중계)
 
-* **배치 완료 통보 값 주의:** 슬라이드 정렬(alignment)과 자동 필기가 구현되기 전까지 `totalPagesAnalyzed` 는 0 이고, `matchedTranscriptSegments` 는 매칭 결과가 아니라 **전사된 세그먼트 수**를 담는다.
+* **배치 완료 통보 값:** `matchedTranscriptSegments` 는 슬라이드에 매칭된 전사 세그먼트 수, `totalPagesAnalyzed` 는 매칭이 붙은 슬라이드 수다. 임베딩이 꺼져 있거나 슬라이드가 없어 정렬을 건너뛰면 둘 다 0 이다. 자동 필기(`slide_annotations`) 생성은 아직 이 단계에 포함되지 않는다.
 
 * **내부 API 인증:** FastAPI \-\> Spring Boot Webhook(`/internal/v1/**`)은 공유 시크릿 헤더 `X-Internal-Secret`으로 인증한다. 값은 양쪽 환경 변수(`INTERNAL_API_SECRET`)로 주입하며 불일치 시 401을 반환한다. Spring Boot \-\> FastAPI 호출은 내부 네트워크 신뢰를 전제로 한다.
 

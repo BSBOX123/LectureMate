@@ -15,7 +15,8 @@
 | 7 | PDF.js 슬라이드 렌더링, 테스트 DB 분리 | 완료 | `43d5947` | [step-7-pdf-viewer.md](step-7-pdf-viewer.md) |
 | 8 | Flyway 도입 (DB 마이그레이션) | 완료 | `85bb4ec` | [step-8-flyway.md](step-8-flyway.md) |
 | 9 | 녹음 + 실시간 자막 (WebSocket + Whisper) | 완료 | `ba67ee8` | [step-9-recording.md](step-9-recording.md) |
-| 10 | 배치 정밀 전사 (녹음 종료 → 분석 → 완료 Webhook) | 완료 (검토 대기) | - | [step-10-batch-transcription.md](step-10-batch-transcription.md) |
+| 10 | 배치 정밀 전사 (녹음 종료 → 분석 → 완료 Webhook) | 완료 | `5db8473` | [step-10-batch-transcription.md](step-10-batch-transcription.md) |
+| 11 | 슬라이드-음성 정렬 (Monotonic DP), 임베딩 활성화 | 완료 (검토 대기) | - | [step-11-alignment.md](step-11-alignment.md) |
 
 ## 주요 결정 기록
 
@@ -50,6 +51,8 @@
 | 2026-09-20 | 실시간 프리뷰는 Whisper base, 배치는 large-v3 | base 가 아니면 CPU 에서 3초 청크를 따라가지 못함 (SPEC §4.2와 일치) | Step 9 |
 | 2026-09-20 | 정밀 분석은 사용자가 버튼으로 시작 (자동 호출 아님) | 녹음 종료 직후 자동 호출 시 WAV 생성 전 도착해 409 발생 가능 | Step 10 |
 | 2026-09-20 | 완료 통보는 Webhook, 값은 임시 의미 (`totalPagesAnalyzed=0`) | 정렬/필기 미구현 구간. SPEC §2.2 에 주석 명시 | Step 10 |
+| 2026-09-20 | `EMBEDDING_ENABLED` 기본값 false → **true** | 정렬과 RAG 에 임베딩이 필수. 테스트에서는 conftest 로 비활성 유지 | Step 11 |
+| 2026-09-20 | 정렬은 단조성 제약 DP + 전환 패널티 0.05 | 강의는 슬라이드를 되돌아가지 않음. 유사도만 쓰면 문장마다 페이지가 튐 | Step 11 |
 
 ## 미결 질문
 
@@ -79,3 +82,4 @@
 - [ ] 운영 전 WebSocket 토큰을 단기 티켓 방식으로 전환할지 (접근 로그 노출) (Step 9)
 - [ ] Webhook 실패 시 강의가 ANALYZING 에 멈춤 — 재시도/타임아웃 필요 (Step 10)
 - [ ] 배치 작업 진행 상태 조회 수단 없음 (task_id 추적 안 함) (Step 10)
+- [ ] 정렬 품질 평가 수단 없음. 전환 패널티(0.05)는 실제 강의 데이터로 조정 필요 (Step 11)

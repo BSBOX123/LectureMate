@@ -15,9 +15,14 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+import numpy as np
+from sqlalchemy import select
+
 from core.config import settings
 from core.database import AsyncSessionLocal, get_session
-from core.models import LectureTranscript
+from core.models import LectureSlide, LectureTranscript
+from services.alignment_service import align_segments_to_pages
+from services.embedding_service import embed_texts
 from services.spring_webhook import notify_analysis_complete
 from services.stt_service import transcribe_file, transcribe_pcm
 
@@ -105,14 +110,65 @@ async def analyze_batch(
     return AnalyzeBatchResponse(task_id=task_id, status="QUEUED")
 
 
-async def run_batch_analysis(lecture_id: int, audio_path: str) -> None:
-    """전사 → lecture_transcripts 적재 → Spring Boot Webhook 통보.
+async def _slide_embeddings(session: AsyncSession, lecture_id: int):
+    """슬라이드 페이지 번호와 임베딩 행렬을 돌려준다.
 
-    슬라이드 정렬(matched_slide_page)과 자동 필기는 다음 단계에서 채운다.
+    PDF 파싱 당시 임베딩이 꺼져 있었다면 여기서 만들어 채운다.
+    """
+    slides = (
+        (
+            await session.execute(
+                select(LectureSlide)
+                .where(LectureSlide.lecture_id == lecture_id)
+                .order_by(LectureSlide.page_number)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not slides:
+        return [], None
+
+    missing = [slide for slide in slides if slide.embedding is None]
+    if missing:
+        vectors = await run_in_threadpool(embed_texts, [slide.slide_text for slide in missing])
+        if vectors[0] is None:
+            return [slide.page_number for slide in slides], None
+        for slide, vector in zip(missing, vectors, strict=True):
+            slide.embedding = vector
+        await session.commit()
+
+    return (
+        [slide.page_number for slide in slides],
+        np.array([slide.embedding for slide in slides], dtype=np.float32),
+    )
+
+
+async def run_batch_analysis(lecture_id: int, audio_path: str) -> None:
+    """전사 → 임베딩 → 슬라이드 정렬 → lecture_transcripts 적재 → Webhook 통보.
+
+    자동 필기(annotation)는 다음 단계에서 붙인다.
     """
     try:
         segments = await run_in_threadpool(transcribe_file, audio_path)
+        embeddings = await run_in_threadpool(embed_texts, [segment.text for segment in segments])
+
         async with AsyncSessionLocal() as session:
+            page_numbers, slide_matrix = await _slide_embeddings(session, lecture_id)
+
+            matched_pages: list[int | None] = [None] * len(segments)
+            if segments and slide_matrix is not None and embeddings[0] is not None:
+                matched_pages = align_segments_to_pages(
+                    np.array(embeddings, dtype=np.float32), slide_matrix, page_numbers
+                )
+            else:
+                log.warning(
+                    "정렬 건너뜀 lecture_id=%s (슬라이드 %s개, 임베딩 %s)",
+                    lecture_id,
+                    len(page_numbers),
+                    "있음" if embeddings and embeddings[0] is not None else "없음",
+                )
+
             await session.execute(
                 delete(LectureTranscript).where(LectureTranscript.lecture_id == lecture_id)
             )
@@ -122,12 +178,24 @@ async def run_batch_analysis(lecture_id: int, audio_path: str) -> None:
                     start_time_ms=segment.start_time_ms,
                     end_time_ms=segment.end_time_ms,
                     speaker_text=segment.text,
+                    matched_slide_page=page,
+                    embedding=embedding,
                 )
-                for segment in segments
+                for segment, page, embedding in zip(
+                    segments, matched_pages, embeddings, strict=True
+                )
             )
             await session.commit()
-        log.info("배치 전사 완료 lecture_id=%s segments=%s", lecture_id, len(segments))
-        await notify_analysis_complete(lecture_id, "READY", 0, len(segments))
+
+        matched = [page for page in matched_pages if page is not None]
+        log.info(
+            "배치 분석 완료 lecture_id=%s segments=%s matched=%s pages=%s",
+            lecture_id,
+            len(segments),
+            len(matched),
+            len(set(matched)),
+        )
+        await notify_analysis_complete(lecture_id, "READY", len(set(matched)), len(matched))
     except Exception:  # noqa: BLE001 - 어떤 실패든 강의 상태를 FAILED 로 돌려야 한다
         log.exception("배치 분석 실패 lecture_id=%s", lecture_id)
         await notify_analysis_complete(lecture_id, "FAILED", 0, 0)
