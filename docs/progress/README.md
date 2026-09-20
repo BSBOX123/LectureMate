@@ -67,6 +67,8 @@
 | 2026-09-20 | 배포는 **GPU EC2 1대에 전부** (postgres/ollama/ai-engine/server-core/web-client/nginx) | 사용자 선택. 같은 볼륨을 공유해 파일 경로 전달 방식 유지 가능 → S3 불필요 | Step 14 |
 | 2026-09-20 | 프론트도 같은 서버 + Nginx | 도메인이 같아 CORS·Refresh 쿠키 설정이 단순 | Step 14 |
 | 2026-09-20 | GitHub Actions CI (모듈 3개 병렬 테스트) | 모델 다운로드 없이 80개 테스트를 돌릴 수 있는 구조 | Step 14 |
+| 2026-09-20 | **AI 모델은 당분간 개발자 Mac 에서 실행** (GPU EC2 보류) | Mac 네이티브 Ollama 9.1 tok/s 로 실용적. GPU EC2 는 시간당 1.2~1.5달러. 만든 인스턴스는 t3.micro(RAM 1GB, GPU 없음)라 사용 불가 | Step 14 |
+| 2026-09-20 | EC2 보안 그룹 SSH 22번: 0.0.0.0/0 → 내 IP(/32) | 전 세계 개방 상태였음. 자동화된 공격 시도 차단 | Step 14 |
 
 ## 미결 질문
 
@@ -90,7 +92,9 @@
 - [ ] 업로드 실패(FAILED) 시 재시도 방법이 없음 (Step 6)
 - [ ] 브라우저 e2e 스크립트를 저장소에 포함할지 (스크래치패드가 정리되어 현재는 없음) (Step 7)
 - [x] ~~배포 설계~~ → GPU EC2 1대 구성, Dockerfile/compose/Nginx/CI 준비 완료 (Step 14)
-- [ ] EC2 에서 `ai-engine` CUDA 이미지 첫 빌드·GPU 인식 검증 (Step 14)
+- [ ] EC2 에서 `ai-engine` CUDA 이미지 첫 빌드·GPU 인식 검증 (GPU 인스턴스 확보 후) (Step 14)
+- [ ] 외부 공개 시: EC2 를 t3.small 이상으로 변경, 탄력적 IP 할당, 80/443 개방, Mac 역터널 구성 (Step 14)
+- [ ] Whisper 를 Metal 지원 백엔드(whisper.cpp / mlx-whisper)로 교체할지 — 배치 전사 속도 문제 (Step 14)
 - [ ] CD(자동 배포), 모니터링/로그 수집, 서비스 헬스체크 (Step 14)
 - [ ] 첫 화면에서 `/auth/refresh` 401 콘솔 오류가 보임 (세션 없을 때 정상 동작이지만 노이즈) (Step 7)
 - [ ] 녹음 중 네트워크 끊김 시 재연결 로직 없음 (Step 9)
