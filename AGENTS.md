@@ -24,6 +24,7 @@
 - Working Directory: `./web-client`
 - Install & Run: `pnpm install && pnpm dev`
 - Test: `pnpm test` (Vitest)
+- Typecheck: `pnpm typecheck` (next typegen + tsc)
 - Build: `pnpm build`
 - Style: Next.js 16 App Router, Tailwind CSS, Any 타입 금지, Functional Component 사용
 

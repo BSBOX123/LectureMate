@@ -88,9 +88,10 @@ jobs:
       - name: Lint
         working-directory: web-client
         run: pnpm lint
+      # next typegen 이 만드는 .next/types 가 있어야 PageProps/LayoutProps 를 해석할 수 있다
       - name: 타입 검사
         working-directory: web-client
-        run: pnpm exec tsc --noEmit
+        run: pnpm typecheck
       - name: 단위 테스트
         working-directory: web-client
         run: pnpm test
