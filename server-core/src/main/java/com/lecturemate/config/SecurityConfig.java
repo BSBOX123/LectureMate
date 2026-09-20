@@ -77,6 +77,8 @@ public class SecurityConfig {
     configuration.setAllowCredentials(true);
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/api/**", configuration);
+    // PDF 다운로드(/files/pdf/{id}.pdf)도 Authorization 헤더를 쓰므로 preflight 가 발생한다
+    source.registerCorsConfiguration("/files/**", configuration);
     return source;
   }
 

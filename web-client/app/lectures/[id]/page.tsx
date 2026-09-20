@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { lectureApi } from "@/lib/api";
 import type { LectureResponse } from "@/types/api";
 import AnnotationOverlay from "@/components/AnnotationOverlay";
@@ -21,6 +21,14 @@ export default function LectureDashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [lecture, setLecture] = useState<LectureResponse | null>(null);
   const [pdfObjectUrl, setPdfObjectUrl] = useState<string | null>(null);
+  const [totalPages, setTotalPages] = useState<number | null>(null);
+  const [scale, setScale] = useState(1);
+
+  const handleDocumentLoaded = useCallback((pages: number) => setTotalPages(pages), []);
+  const handlePageRendered = useCallback(
+    (info: { scale: number }) => setScale(info.scale),
+    [],
+  );
 
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -79,6 +87,7 @@ export default function LectureDashboardPage() {
       </header>
       <main className="grid flex-1 grid-cols-[12rem_1fr_22rem] gap-2 overflow-hidden p-2">
         <SlideTimeline
+          totalPages={totalPages}
           items={[]}
           currentPage={currentPage}
           onSelectPage={setCurrentPage}
@@ -87,8 +96,10 @@ export default function LectureDashboardPage() {
           pdfUrl={pdfObjectUrl}
           pageNumber={currentPage}
           onPageChange={setCurrentPage}
+          onDocumentLoaded={handleDocumentLoaded}
+          onPageRendered={handlePageRendered}
         >
-          <AnnotationOverlay annotation={null} scale={1} />
+          <AnnotationOverlay annotation={null} scale={scale} />
         </PdfViewer>
         <LectureChatPanel
           lectureId={lectureId}

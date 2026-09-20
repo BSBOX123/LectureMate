@@ -8,6 +8,7 @@
 - Working Directory: 프로젝트 루트
 - Run: `docker-compose up -d postgres ollama`
 - DB 초기 스키마: `db/init.sql` (postgres 볼륨 최초 생성 시 1회 실행, 재적용 시 `docker compose down -v`)
+- 통합 테스트는 전용 DB `lecturemate_test` 를 사용한다 (`db/init-test-db.sql`). 개발용 DB 를 가리키게 바꾸지 말 것 — 테스트가 데이터를 삭제한다.
 
 ## Build & Test Commands by Module
 
@@ -21,6 +22,7 @@
 ### 2. Frontend (Next.js / TypeScript)
 - Working Directory: `./web-client`
 - Install & Run: `pnpm install && pnpm dev`
+- Test: `pnpm test` (Vitest)
 - Build: `pnpm build`
 - Style: Next.js 16 App Router, Tailwind CSS, Any 타입 금지, Functional Component 사용
 

@@ -15,6 +15,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
       # 최초 볼륨 생성 시 1회만 실행됨 (스키마 변경 후 재적용하려면 볼륨 삭제 필요)
       - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./db/init-test-db.sql:/docker-entrypoint-initdb.d/02-test-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d lecturemate"]
       interval: 5s

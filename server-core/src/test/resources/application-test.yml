@@ -1,0 +1,5 @@
+# 통합 테스트는 전용 DB(lecturemate_test)를 쓴다.
+# 테스트가 users/lectures 를 deleteAll 하므로 개발용 DB 를 가리키면 안 된다.
+spring:
+  datasource:
+    url: ${SPRING_TEST_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lecturemate_test}

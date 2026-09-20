@@ -38,4 +38,6 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // 전용 DB(lecturemate_test)를 쓰는 test 프로필로 실행한다 (application-test.yml)
+    systemProperty 'spring.profiles.active', 'test'
 }
