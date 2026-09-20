@@ -16,9 +16,14 @@ export default function Home() {
           <p className="text-sm">
             {user.name}님 ({user.email})
           </p>
-          <button className="rounded border px-3 py-1 text-sm" onClick={() => void logout()}>
-            로그아웃
-          </button>
+          <div className="flex gap-3 text-sm">
+            <Link className="rounded bg-zinc-900 px-3 py-1 text-white" href="/lectures">
+              내 강의
+            </Link>
+            <button className="rounded border px-3 py-1" onClick={() => void logout()}>
+              로그아웃
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex gap-3 text-sm">

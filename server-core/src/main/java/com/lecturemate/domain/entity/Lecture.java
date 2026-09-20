@@ -56,6 +56,16 @@ public class Lecture {
     this.title = title;
   }
 
+  /** PDF 업로드 완료: 클라이언트가 내려받을 URL 을 기록하고 파싱 대기 상태로 만든다. */
+  public void attachPdf(String pdfUrl) {
+    this.pdfUrl = pdfUrl;
+    this.status = LectureStatus.PROCESSING;
+  }
+
+  public void changeStatus(LectureStatus status) {
+    this.status = status;
+  }
+
   public Long getId() {
     return id;
   }

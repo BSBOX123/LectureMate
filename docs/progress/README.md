@@ -10,7 +10,8 @@
 | 2 | FastAPI `ai-engine` 스캐폴딩 | 완료 | `16bef97` | [step-2-ai-engine.md](step-2-ai-engine.md) |
 | 3 | Spring Boot `server-core` 스캐폴딩 | 완료 | `fbb3153` | [step-3-server-core.md](step-3-server-core.md) |
 | 4 | Next.js `web-client` 스캐폴딩 | 완료 | `8e486ed` | [step-4-web-client.md](step-4-web-client.md) |
-| 5 | 인증 (Spring Security + JWT, 로그인/회원가입 화면) | 완료 (검토 대기) | - | [step-5-auth.md](step-5-auth.md) |
+| 5 | 인증 (Spring Security + JWT, 로그인/회원가입 화면) | 완료 | `9f277da` | [step-5-auth.md](step-5-auth.md) |
+| 6 | 강의 생성 / PDF 업로드 / 파싱 | 완료 (검토 대기) | - | [step-6-lecture-upload.md](step-6-lecture-upload.md) |
 
 ## 주요 결정 기록
 
@@ -33,6 +34,9 @@
 | 2026-09-20 | 내부 Webhook은 `X-Internal-Secret` 공유 시크릿 헤더 | 사용자 선택. 구현이 단순하고 EC2 분리 배포에도 안전 | Step 5 |
 | 2026-09-20 | JWT는 Spring Security 내장(Nimbus) 사용, 외부 라이브러리 미사용 | 의존성 및 버전 관리 단순화 | Step 5 |
 | 2026-09-20 | Access Token은 프론트 메모리에만 보관, 새로고침 시 refresh로 복구 | localStorage는 XSS 취약 | Step 5 |
+| 2026-09-20 | PDF 파싱은 트랜잭션 커밋 후 비동기 호출, 완료 시 status=READY | SPEC §2.1-1 응답이 PROCESSING, FastAPI가 FK 때문에 커밋된 lectures 행 필요 | Step 6 |
+| 2026-09-20 | 슬라이드 임베딩은 `EMBEDDING_ENABLED`(기본 false)로 분리 | bge-m3 약 2GB 다운로드와 CPU 추론 비용. RAG 단계에서 활성화 | Step 6 |
+| 2026-09-20 | 강의 목록 API/화면(§2.1-11)과 PDF 내려받기(§2.1-12) 추가 | 업로드한 강의로 이동할 경로가 필요 | Step 6 |
 
 ## 미결 질문
 
@@ -46,8 +50,11 @@
 - [ ] `SlideTimeline`의 데이터(슬라이드별 발화 분량, 시험 힌트 유무)를 가져올 API가 SPEC §2.1에 없음 (Step 4)
 - [ ] §2.1-5 채팅 SSE의 이벤트 형식(토큰 청크, citations 구조)이 정의되지 않음 (Step 4)
 - [x] ~~프론트엔드 API 주소 환경 변수와 CORS~~ → `NEXT_PUBLIC_API_BASE_URL`, `WEB_CLIENT_ORIGIN` (Step 5)
-- [ ] 강의 목록과 PDF 업로드 화면: SPEC §4.3에는 대시보드만 있음 (Step 4)
+- [x] ~~강의 목록과 PDF 업로드 화면~~ → `/lectures`, `/lectures/new` 추가, SPEC §2.1-11·12 반영 (Step 6)
 - [ ] `/ws/v1/**` WebSocket 인증 방식(브라우저는 헤더를 못 붙임 → 쿼리 파라미터 토큰 등): WS 핸들러 구현 시 결정 (Step 5)
 - [ ] 로그인 상태가 아닐 때 `/lectures/[id]` 접근 차단(라우트 가드) 미구현 (Step 5)
 - [ ] `ai-engine`에 `INTERNAL_API_SECRET` 반영 필요 (Webhook 호출 코드 작성 시) (Step 5)
 - [ ] DB 스키마 변경 방식: 현재는 `init.sql` + 볼륨 재생성. 데이터가 쌓이기 전에 Flyway 도입 검토 (Step 5)
+- [ ] `PdfViewer`가 아직 PDF를 렌더링하지 않음 (pdfjs-dist 미설치). 다음 단계 후보 (Step 6)
+- [ ] 강의 삭제 API와 파일 정리 정책이 없음 (Step 6)
+- [ ] 업로드 실패(FAILED) 시 재시도 방법이 없음 (Step 6)

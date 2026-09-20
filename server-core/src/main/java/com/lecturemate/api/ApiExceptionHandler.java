@@ -1,6 +1,7 @@
 package com.lecturemate.api;
 
 import com.lecturemate.service.AuthService.DuplicateEmailException;
+import com.lecturemate.service.StorageService.InvalidPdfException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -15,6 +16,11 @@ public class ApiExceptionHandler {
   @ExceptionHandler(DuplicateEmailException.class)
   ProblemDetail handleDuplicateEmail(DuplicateEmailException e) {
     return problem(HttpStatus.CONFLICT, e.getMessage(), "duplicate-email");
+  }
+
+  @ExceptionHandler(InvalidPdfException.class)
+  ProblemDetail handleInvalidPdf(InvalidPdfException e) {
+    return problem(HttpStatus.BAD_REQUEST, e.getMessage(), "invalid-pdf");
   }
 
   @ExceptionHandler(BadCredentialsException.class)

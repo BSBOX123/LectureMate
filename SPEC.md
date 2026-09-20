@@ -119,6 +119,19 @@
     * Request Header: `Authorization: Bearer {accessToken}`  
     * Response (200 OK): `{ "userId": 1, "email": "student@example.com", "name": "김학생" }`
 
+11. **강의 목록 / 메타데이터 조회**  
+    * `GET /api/v1/lectures` → `[{ "lectureId": 101, "title": "...", "status": "READY", "pdfUrl": "/files/pdf/101.pdf" }, ...]` (본인 강의만, 최신순)  
+    * `GET /api/v1/lectures/{lectureId}` → 위 항목과 동일한 형식. 본인 강의가 아니면 404  
+12. **업로드된 PDF 내려받기**  
+    * `GET /files/pdf/{lectureId}.pdf`  
+    * Request Header: `Authorization: Bearer {accessToken}`. 본인 강의가 아니면 404  
+    * Response: `application/pdf`
+
+* **강의 status 전이**  
+  * `INITIALIZED` (행 생성) → `PROCESSING` (PDF 저장 완료, FastAPI 파싱 요청) → `READY` (파싱 완료, 녹음/학습 가능)  
+  * `READY` → `RECORDING` (녹음 중) → `ANALYZING` (배치 분석 중) → `READY` (§2.2-4 Webhook 수신)  
+  * 각 단계 실패 시 `FAILED`
+
 * **인증 규칙**  
   * `/api/v1/auth/**`를 제외한 모든 `/api/v1/**`와 `/ws/v1/**`는 Access Token이 필요하다 (`Authorization: Bearer {accessToken}`)  
   * Access Token은 HS256 서명 JWT, 유효기간 30분, `sub`에 userId. Refresh Token은 14일  

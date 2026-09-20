@@ -10,12 +10,12 @@ export type LectureStatus =
   | "READY"
   | "FAILED";
 
-/** §2.1-1 POST /api/v1/lectures 응답 */
-export interface LectureCreatedResponse {
+/** §2.1-1 POST /api/v1/lectures 응답 및 강의 메타데이터 조회 응답 */
+export interface LectureResponse {
   lectureId: number;
   title: string;
   status: LectureStatus;
-  pdfUrl: string;
+  pdfUrl: string | null;
 }
 
 /** §2.1-2 WS /ws/v1/lectures/{lectureId}/audio 서버 → 클라이언트 이벤트 */
