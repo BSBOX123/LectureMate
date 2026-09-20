@@ -22,7 +22,7 @@
 | 14 | 배포 준비 (Docker 이미지, Nginx, CI) | 완료 | `f793455` | [step-14-deployment.md](step-14-deployment.md) |
 | 15 | 데스크톱 실행 앱 (서비스 일괄 시작/중지) | 완료 | `4f7f901` | [step-15-launcher.md](step-15-launcher.md) |
 | 16 | 화면 다듬기 (가드·타임라인·삭제·재시도) | 완료 | `695cf2b` | [step-16-ui-polish.md](step-16-ui-polish.md) |
-| 17 | LLM 백엔드를 Claude Code 로 교체 | 완료 (검토 대기) | - | [step-17-claude-code-llm.md](step-17-claude-code-llm.md) |
+| 17 | LLM 백엔드를 Claude Code 로 교체 | 완료 | `871ad43` | [step-17-claude-code-llm.md](step-17-claude-code-llm.md) |
 
 > GitHub: [BSBOX123/LectureMate](https://github.com/BSBOX123/LectureMate) — main 푸시 완료, CI 3개 잡 통과
 

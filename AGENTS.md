@@ -15,7 +15,9 @@
 - Desktop 의 `LectureMate 시작.app` 아이콘으로 서비스 5개 일괄 기동 (또는 `scripts/lecturemate.sh start`)
 - 중지: `LectureMate 중지.app` 또는 `scripts/lecturemate.sh stop`
 - 앱 재빌드: `scripts/build-apps.sh`
-- LLM 은 Mac 네이티브 Ollama + `qwen2.5:7b-instruct` 사용 (SPEC 기본값 14b 는 로컬 RAM 초과)
+- LLM 은 로컬 Claude Code CLI 를 headless 로 호출한다 (`LLM_PROVIDER=claude-code`, 기본값).
+  사용량 한도나 오프라인 시 `LLM_PROVIDER=ollama LLM_MODEL_NAME=qwen2.5:7b-instruct` 로 되돌린다.
+- 테스트는 실제 LLM 을 호출하지 않는다 (`tests/conftest.py` 가 차단). 필요한 테스트는 함수를 직접 대체한다.
 
 ## Build & Test Commands by Module
 

@@ -29,6 +29,36 @@ wait_for() { # wait_for <포트> <이름> <최대 초>
   return 1
 }
 
+ensure_docker() { # OrbStack 이 꺼져 있으면 켜고 도커 데몬이 응답할 때까지 기다린다
+  if docker ps >/dev/null 2>&1; then
+    return 0
+  fi
+  say "OrbStack 시작..."
+  open -a OrbStack 2>/dev/null || { say "✗ OrbStack 을 찾지 못했습니다"; return 1; }
+  local waited=0
+  while [ "$waited" -lt 60 ]; do
+    docker ps >/dev/null 2>&1 && { say "✓ Docker 준비됨"; return 0; }
+    sleep 2
+    waited=$((waited + 2))
+  done
+  say "✗ OrbStack 이 60초 안에 준비되지 않았습니다"
+  return 1
+}
+
+wait_for_postgres() {
+  local waited=0
+  while [ "$waited" -lt 60 ]; do
+    if [ "$(docker inspect -f '{{.State.Health.Status}}' lecturemate-postgres 2>/dev/null)" = "healthy" ]; then
+      say "✓ PostgreSQL 준비됨 (:5432)"
+      return 0
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  say "✗ PostgreSQL 이 60초 안에 준비되지 않았습니다. 로그: $LOG_DIR/postgres.log"
+  return 1
+}
+
 start() {
   say "LectureMate 시작 (로그: $LOG_DIR)"
 
@@ -38,11 +68,14 @@ start() {
     brew services start ollama >/dev/null 2>&1 || nohup ollama serve >"$LOG_DIR/ollama.log" 2>&1 &
   fi
 
-  # 2. PostgreSQL — Docker 컨테이너
+  # 2. PostgreSQL — Docker 컨테이너 (OrbStack 이 꺼져 있으면 먼저 켠다)
+  ensure_docker || return 1
   if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q lecturemate-postgres; then
     say "PostgreSQL 컨테이너 시작..."
     (cd "$PROJECT_DIR" && docker-compose up -d postgres) >"$LOG_DIR/postgres.log" 2>&1
   fi
+  # DB 가 연결을 받기 전에 백엔드가 뜨면 기동에 실패한다
+  wait_for_postgres
 
   # 3. FastAPI (AI 엔진)
   if [ -z "$(port_pid 8000)" ]; then

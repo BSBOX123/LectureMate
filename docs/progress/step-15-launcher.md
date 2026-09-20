@@ -16,8 +16,9 @@
 ## 동작
 
 **시작 아이콘을 누르면:**
-1. 알림 표시 → 2. Ollama(없으면 기동) → 3. PostgreSQL 컨테이너 → 4. AI 엔진(:8000) → 5. 백엔드(:8080) → 6. 프론트엔드(:3000)
-7. 포트가 열릴 때까지 기다린 뒤 **브라우저에서 http://localhost:3000 열기**
+1. 알림 표시 → 2. Ollama(없으면 기동) → 3. **OrbStack(Docker) 기동 및 대기** → 4. PostgreSQL 컨테이너 기동 후 healthy 대기
+→ 5. AI 엔진(:8000) → 6. 백엔드(:8080) → 7. 프론트엔드(:3000)
+8. 포트가 열릴 때까지 기다린 뒤 **브라우저에서 http://localhost:3000 열기**
 
 이미 떠 있는 서비스는 건너뛰므로 여러 번 눌러도 안전합니다.
 
@@ -44,6 +45,7 @@ scripts/lecturemate.sh start | stop | status
 |---|---|---|
 | 앱을 눌러도 서비스가 뜨지 않고 로그도 없음 | `path to me`가 `.app` 디렉토리 자체를 가리켜 상위 경로 계산이 한 단계 부족했음 (`scripts/scripts/...`를 찾고 있었음) | `../../../` 로 수정 |
 | Desktop 심볼릭 링크로 앱 실행 실패 (`error -10810`) | macOS 는 심볼릭 링크를 통한 앱 실행을 허용하지 않음 | Finder **별칭**(alias)으로 생성 |
+| **OrbStack 이 꺼져 있으면 백엔드 기동 실패** (2026-09-21) | PostgreSQL 컨테이너가 뜨지 못해 Spring Boot 가 DB 연결 실패로 종료. 스크립트는 Docker 가 켜져 있다고 가정했음 | `ensure_docker()` 추가: OrbStack 을 켜고 `docker ps` 가 응답할 때까지 최대 60초 대기. 이어서 `wait_for_postgres()` 로 healthy 확인 후 백엔드를 띄운다 |
 
 ## 검증 결과
 
@@ -52,6 +54,19 @@ scripts/lecturemate.sh start | stop | status
 - 중지 앱 → 프론트·백엔드·AI·DB 정지, Ollama 유지 확인
 - Desktop 별칭으로도 동일하게 동작
 - 엔드포인트: 프론트 200, 백엔드 401(인증 동작), AI 엔진 200
+
+## 추가 (2026-09-21): OrbStack 자동 기동
+
+`ensure_docker()` 와 `wait_for_postgres()` 를 추가했습니다. OrbStack 을 종료한 상태에서 실행해 확인한 결과:
+
+```
+00:30:40 LectureMate 시작
+00:30:40 OrbStack 시작...
+00:30:42 ✓ Docker 준비됨
+00:30:48 ✓ PostgreSQL 준비됨 (:5432)
+```
+
+DB 가 연결을 받기 전에 백엔드가 뜨면 기동에 실패하므로, postgres healthy 를 기다린 뒤 백엔드를 시작합니다.
 
 ## 남은 일
 
