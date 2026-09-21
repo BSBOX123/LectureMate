@@ -30,7 +30,12 @@ class Settings(BaseSettings):
     internal_api_secret: str = "local-dev-internal-secret"
 
     # Models
-    # 배치 정밀 전사용 (SPEC §2.2-2)
+    # STT 백엔드
+    #   mlx: Apple GPU(Metal) 사용. macOS 전용이지만 CPU 대비 약 13배 빠르다 (실측 1분 음성: 208초 → 16초)
+    #   faster-whisper: CPU. Linux/EC2 와 테스트 환경용
+    stt_backend: Literal["mlx", "faster-whisper"] = "mlx"
+    mlx_model_repo: str = "mlx-community/whisper-large-v3-mlx"
+    # 배치 정밀 전사용 (SPEC §2.2-2). faster-whisper 백엔드에서 사용
     whisper_model_name: str = "large-v3"
     # 실시간 프리뷰 자막용. 작은 모델이어야 3~5초 청크를 실시간으로 따라갈 수 있다 (SPEC §4.2)
     whisper_realtime_model_name: str = "base"
@@ -48,6 +53,8 @@ class Settings(BaseSettings):
     # 실시간 오디오 (SPEC §2.1-2: PCM 16kHz 모노 16bit LE, 3~5초 단위)
     audio_sample_rate: int = 16000
     realtime_chunk_seconds: float = 3.0
+    # 배치 전사를 나눠 처리하는 단위(초). 통째로 넘기면 Whisper 가 반복 루프에 빠질 수 있다
+    batch_window_seconds: float = 300.0
 
     # LLM 백엔드 선택
     #   claude-code: 로컬 Claude Code CLI (구독 사용량, 품질 높음) — 기본값

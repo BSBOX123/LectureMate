@@ -56,7 +56,7 @@ public class AudioStreamWebSocketHandler extends BinaryWebSocketHandler {
     this.audioProperties = audioProperties;
   }
 
-  /** 녹음 세션 하나의 상태. */
+  /** 녹음 세션 하나의 상태. 실시간 자막을 끄면 {@code aiSession} 이 null 이다. */
   private record Recording(Long lectureId, OutputStream pcmSink, WebSocketSession aiSession) {}
 
   @Override
@@ -75,14 +75,18 @@ public class AudioStreamWebSocketHandler extends BinaryWebSocketHandler {
       return;
     }
 
+    // 실시간 자막은 녹음 내내 Whisper 를 돌려 CPU 를 계속 점유한다(발열). 기본은 끔.
+    boolean preview = previewRequested(session);
     WebSocketSession aiSession =
-        fastApiClient
-            .execute(new PreviewRelayHandler(session), aiStreamUri(lectureId).toString())
-            .get(); // 연결될 때까지 대기
+        preview
+            ? fastApiClient
+                .execute(new PreviewRelayHandler(session), aiStreamUri(lectureId).toString())
+                .get() // 연결될 때까지 대기
+            : null;
     session.getAttributes().put(SESSION_KEY, new Recording(
         lectureId, storageService.openPcmSink(lectureId), aiSession));
     lectureService.changeStatus(lectureId, LectureStatus.RECORDING);
-    log.info("녹음 시작 lectureId={} userId={}", lectureId, userId);
+    log.info("녹음 시작 lectureId={} userId={} 실시간자막={}", lectureId, userId, preview);
   }
 
   @Override
@@ -95,7 +99,7 @@ public class AudioStreamWebSocketHandler extends BinaryWebSocketHandler {
     byte[] payload = new byte[message.getPayload().remaining()];
     message.getPayload().get(payload);
     recording.pcmSink().write(payload);
-    if (recording.aiSession().isOpen()) {
+    if (recording.aiSession() != null && recording.aiSession().isOpen()) {
       recording.aiSession().sendMessage(new BinaryMessage(payload));
     }
   }
@@ -119,7 +123,7 @@ public class AudioStreamWebSocketHandler extends BinaryWebSocketHandler {
       log.warn("PCM 파일 닫기 실패 lectureId={}", recording.lectureId(), e);
     }
     try {
-      if (recording.aiSession().isOpen()) {
+      if (recording.aiSession() != null && recording.aiSession().isOpen()) {
         recording.aiSession().close();
       }
     } catch (IOException e) {
@@ -158,6 +162,19 @@ public class AudioStreamWebSocketHandler extends BinaryWebSocketHandler {
       }
     }
     return null;
+  }
+
+  /** {@code ?preview=true} 일 때만 실시간 자막을 만든다 (SPEC §2.1-2). 기본은 끔. */
+  private static boolean previewRequested(WebSocketSession session) {
+    if (session.getUri() == null) {
+      return false;
+    }
+    return "true"
+        .equalsIgnoreCase(
+            UriComponentsBuilder.fromUri(session.getUri())
+                .build()
+                .getQueryParams()
+                .getFirst("preview"));
   }
 
   /** 브라우저는 WebSocket 에 Authorization 헤더를 붙일 수 없어 쿼리 파라미터로 받는다. */

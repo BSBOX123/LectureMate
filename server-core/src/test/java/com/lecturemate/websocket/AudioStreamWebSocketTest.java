@@ -82,6 +82,45 @@ class AudioStreamWebSocketTest {
     assertClosed(connect("?token=" + otherUserToken));
   }
 
+  /**
+   * 실시간 자막을 끄면 FastAPI 없이도 녹음이 된다.
+   *
+   * <p>테스트 환경에는 FastAPI 가 없으므로, preview=true 였다면 연결이 끊겼을 것이다.
+   */
+  @Test
+  void recordsWithoutFastApiWhenPreviewDisabled() throws Exception {
+    String ownerToken =
+        jwtTokenService.issueAccessToken(
+            userRepository.findByEmail("ws-owner@example.com").orElseThrow(), Instant.now());
+
+    WebSocketSession session = connect("?token=" + ownerToken + "&preview=false");
+
+    // 세션이 유지되고 오디오를 받아들인다
+    session.sendMessage(new org.springframework.web.socket.BinaryMessage(new byte[3200]));
+    assertThat(session.isOpen()).isTrue();
+
+    session.close();
+    Awaitility.await()
+        .atMost(Duration.ofSeconds(5))
+        .untilAsserted(
+            () ->
+                assertThat(lectureRepository.findById(lectureId).orElseThrow().getAudioUrl())
+                    .isNotNull());
+  }
+
+  /** preview 파라미터가 없으면 자막을 만들지 않는다 (기본 꺼짐). */
+  @Test
+  void previewIsDisabledByDefault() throws Exception {
+    String ownerToken =
+        jwtTokenService.issueAccessToken(
+            userRepository.findByEmail("ws-owner@example.com").orElseThrow(), Instant.now());
+
+    WebSocketSession session = connect("?token=" + ownerToken);
+
+    assertThat(session.isOpen()).isTrue();
+    session.close();
+  }
+
   @Test
   void rejectsUnknownLecture() throws Exception {
     String ownerToken =

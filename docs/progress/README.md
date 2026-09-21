@@ -23,6 +23,7 @@
 | 15 | 데스크톱 실행 앱 (서비스 일괄 시작/중지) | 완료 | `4f7f901` | [step-15-launcher.md](step-15-launcher.md) |
 | 16 | 화면 다듬기 (가드·타임라인·삭제·재시도) | 완료 | `695cf2b` | [step-16-ui-polish.md](step-16-ui-polish.md) |
 | 17 | LLM 백엔드를 Claude Code 로 교체 | 완료 | `871ad43` | [step-17-claude-code-llm.md](step-17-claude-code-llm.md) |
+| 18 | 실제 강의 사용 후 개선 (자막 토글·전사 속도·분석 안내) | 완료 (검토 대기) | - | [step-18-real-lecture-fixes.md](step-18-real-lecture-fixes.md) |
 
 > GitHub: [BSBOX123/LectureMate](https://github.com/BSBOX123/LectureMate) — main 푸시 완료, CI 3개 잡 통과
 
@@ -78,6 +79,9 @@
 | 2026-09-20 | SPEC §2.1-12/13/14 신설 (타임라인·삭제·재시도) | 화면에 필요한데 명세에 없던 API | Step 16 |
 | 2026-09-20 | 삭제 시 하위 데이터는 DB CASCADE 에 맡김 | 스키마에 이미 있는 제약. 애플리케이션 중복 삭제 불필요 | Step 16 |
 | 2026-09-20 | **LLM 을 Claude Code(headless)로 교체**, `LLM_PROVIDER` 로 Ollama 전환 가능 | 7B 품질 한계. 로컬 전용이라 구독 사용 가능. RAG·벡터 DB·citations 는 그대로 유지 | Step 17 |
+| 2026-09-21 | 실시간 자막 **기본 꺼짐** (`preview` 파라미터) | 실측 60초 음성에 40초 소요 → 녹음 내내 CPU 점유(발열). 자막 품질도 낮고, 꺼도 정밀 분석 품질은 동일 | Step 18 |
+| 2026-09-21 | STT 백엔드 **mlx-whisper(Apple GPU)** 추가, 기본값 | 1분 음성: CPU 208초 → GPU 16초 (약 13배). 36분 강의 127분 → 15분 | Step 18 |
+| 2026-09-21 | 배치 전사를 5분 단위로 분할 + `condition_on_previous_text=False` | 통째로 넘기면 Whisper 반복 루프로 4.5시간 후에도 미완료 | Step 18 |
 
 ## 미결 질문
 
@@ -103,7 +107,7 @@
 - [x] ~~배포 설계~~ → GPU EC2 1대 구성, Dockerfile/compose/Nginx/CI 준비 완료 (Step 14)
 - [ ] EC2 에서 `ai-engine` CUDA 이미지 첫 빌드·GPU 인식 검증 (GPU 인스턴스 확보 후) (Step 14)
 - [ ] (보류) EC2 는 삭제됨. 외부 공개가 필요해지면 다시 생성:: EC2 t3.small 이상 + 탄력적 IP + 80/443 개방 + Mac 역터널, 또는 GPU 인스턴스 (Step 14)
-- [ ] Whisper 를 Metal 지원 백엔드(whisper.cpp / mlx-whisper)로 교체할지 — 배치 전사 속도 문제 (Step 14)
+- [x] ~~Whisper Metal 백엔드~~ → mlx-whisper 도입, 13배 개선 (Step 18)
 - [ ] CD(자동 배포), 모니터링/로그 수집, 서비스 헬스체크 (Step 14)
 - [ ] 첫 화면에서 `/auth/refresh` 401 콘솔 오류가 보임 (세션 없을 때 정상 동작이지만 노이즈) (Step 7)
 - [ ] 녹음 중 네트워크 끊김 시 재연결 로직 없음 (Step 9)
@@ -115,7 +119,8 @@
 - [ ] 슬라이드 45장이면 LLM 호출도 45번(로컬 7B 약 13분). 병렬화/진행률 표시 검토 (Step 12)
 - [ ] 시험 힌트 확인: 테스트 음원에 '시험' 언급이 없어 미표시. 실제 강의로 검증 필요 (Step 12, 16, 17)
 - [ ] Claude Code 프로세스 시작 2~3초 — 세션 재사용(`--resume`)으로 단축 검토 (Step 17)
-- [ ] 슬라이드 45장 = LLM 45회 호출. 사용량·시간 고려한 병렬/묶음 처리 검토 (Step 17)
+- [ ] 슬라이드 45장 = LLM 45회 호출. 사용량·시간 고려한 병렬/묶음 처리 검토 (Step 17, 실제 강의는 128쪽)
+- [ ] 전사 전문 용어 오인식("외래 키"→"외의 키"). initial_prompt 로 용어 사전 제공 검토 (Step 18)
 - [ ] 채팅이 이전 질문 맥락을 이어받지 않음 (매 질문 독립) (Step 13)
 - [ ] 같은 쪽 발화가 여러 건이면 출처 뱃지가 중복 표시됨 (Step 13)
 - [ ] RAG 검색 품질 평가 수단 없음 (top_k=5 고정) (Step 13)

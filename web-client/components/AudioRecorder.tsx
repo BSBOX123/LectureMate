@@ -35,6 +35,9 @@ export default function AudioRecorder({
   onRecordingFinished,
 }: AudioRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
+  // 실시간 자막은 녹음 내내 Whisper 를 돌려 CPU 를 계속 쓴다(발열). 기본은 꺼 둔다.
+  // 꺼도 녹음은 그대로 저장되고, 정밀 분석 품질에는 영향이 없다.
+  const [subtitleEnabled, setSubtitleEnabled] = useState(false);
   const [preview, setPreview] = useState<TranscriptPreviewEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const handles = useRef<RecorderHandles | null>(null);
@@ -68,7 +71,8 @@ export default function AudioRecorder({
 
       const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
       const socket = new WebSocket(
-        `${base.replace(/^http/, "ws")}/ws/v1/lectures/${lectureId}/audio?token=${encodeURIComponent(token)}`,
+        `${base.replace(/^http/, "ws")}/ws/v1/lectures/${lectureId}/audio` +
+          `?token=${encodeURIComponent(token)}&preview=${subtitleEnabled}`,
       );
       socket.binaryType = "arraybuffer";
       socket.onmessage = (event: MessageEvent<string>) =>
@@ -115,7 +119,7 @@ export default function AudioRecorder({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "녹음을 시작하지 못했습니다.");
     }
-  }, [lectureId, stop, onRecordingStarted]);
+  }, [lectureId, stop, onRecordingStarted, subtitleEnabled]);
 
   return (
     <section className="flex items-center gap-3">
@@ -126,8 +130,25 @@ export default function AudioRecorder({
       >
         {isRecording ? "녹음 종료" : "녹음 시작"}
       </button>
-      <p className="max-w-xl truncate text-sm text-zinc-600" aria-live="polite">
-        {error ?? preview?.text ?? (isRecording ? "듣는 중..." : "실시간 자막 프리뷰")}
+      <label
+        className="flex items-center gap-1 text-xs text-zinc-500"
+        title="켜면 녹음 중 노트북이 뜨거워지고 배터리를 더 씁니다. 꺼도 녹음 후 정밀 분석 품질은 같습니다."
+      >
+        <input
+          type="checkbox"
+          checked={subtitleEnabled}
+          disabled={isRecording}
+          onChange={(event) => setSubtitleEnabled(event.target.checked)}
+        />
+        실시간 자막
+      </label>
+      <p className="max-w-lg truncate text-sm text-zinc-600" aria-live="polite">
+        {error ??
+          (subtitleEnabled
+            ? (preview?.text ?? (isRecording ? "듣는 중..." : "실시간 자막 프리뷰"))
+            : isRecording
+              ? "녹음 중 (자막 꺼짐)"
+              : "")}
       </p>
     </section>
   );

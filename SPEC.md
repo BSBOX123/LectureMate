@@ -37,7 +37,8 @@
 
    &nbsp;  
 2. **실시간 오디오 스트림 수신 (WebSocket)**  
-   * `WS /ws/v1/lectures/{lectureId}/audio?token={accessToken}`  
+   * `WS /ws/v1/lectures/{lectureId}/audio?token={accessToken}&preview={true|false}`  
+   * `preview` 는 실시간 자막 사용 여부(기본 `false`). 켜면 녹음 내내 Whisper 를 돌려 CPU 를 계속 점유하므로 발열이 생긴다. 꺼도 녹음은 그대로 저장되고 §2.2-2 정밀 전사 품질에는 영향이 없다  
    * 인증: 브라우저는 WebSocket 요청에 헤더를 붙일 수 없으므로 Access Token 을 쿼리 파라미터로 전달한다. 토큰이 없거나 강의 소유자가 아니면 1008(Policy Violation)로 종료한다  
    * Client \-\> Spring Boot: Binary Audio Chunks — **16kHz 모노 16bit LE PCM**, 3\~5초 단위  
    * 수신한 PCM 은 서버가 누적해 연결 종료 시 `{STORAGE_LOCAL_PATH}/audio/{lectureId}.wav` 로 저장하고 `lectures.audio_url` 을 기록한다  

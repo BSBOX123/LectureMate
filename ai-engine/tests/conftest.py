@@ -21,3 +21,6 @@ os.environ.setdefault("EMBEDDING_ENABLED", "false")
 # 테스트가 실제 LLM(Claude Code 구독 사용량)을 쓰지 않도록 실행 불가능한 명령을 지정한다.
 # LLM 이 필요한 테스트는 generate_annotation / stream_answer 를 직접 대체한다.
 os.environ.setdefault("CLAUDE_CODE_COMMAND", "/nonexistent/claude-for-tests")
+
+# mlx 는 Apple Silicon 전용이라 CI(Linux)에서 설치되지 않는다. 테스트는 CPU 백엔드로 고정한다.
+os.environ.setdefault("STT_BACKEND", "faster-whisper")
