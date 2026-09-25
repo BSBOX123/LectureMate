@@ -7,7 +7,7 @@ import pymupdf
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.models import LectureSlide
+from core.models import MaterialPage
 
 
 @dataclass(frozen=True)
@@ -15,7 +15,7 @@ class ParsedPage:
     """한 페이지의 파싱 결과."""
 
     page_number: int  # 1-based
-    slide_text: str
+    page_text: str
     layout_data: list[dict]  # [{"word": "Dijkstra", "bbox": [x1, y1, x2, y2]}, ...]
 
 
@@ -35,7 +35,7 @@ def parse_pdf(pdf_path: str | Path) -> list[ParsedPage]:
             pages.append(
                 ParsedPage(
                     page_number=index,
-                    slide_text=page.get_text("text").strip(),
+                    page_text=page.get_text("text").strip(),
                     layout_data=words,
                 )
             )
@@ -44,17 +44,19 @@ def parse_pdf(pdf_path: str | Path) -> list[ParsedPage]:
 
 async def store_pages(
     session: AsyncSession,
-    lecture_id: int,
+    material_id: int,
+    course_id: int,
     pages: list[ParsedPage],
     embeddings: list[list[float] | None] | None = None,
 ) -> int:
-    """파싱 결과를 lecture_slides 에 저장한다. 같은 강의를 다시 파싱하면 기존 행을 교체한다."""
-    await session.execute(delete(LectureSlide).where(LectureSlide.lecture_id == lecture_id))
+    """파싱 결과를 material_pages 에 저장한다. 같은 자료를 다시 파싱하면 기존 행을 교체한다."""
+    await session.execute(delete(MaterialPage).where(MaterialPage.material_id == material_id))
     session.add_all(
-        LectureSlide(
-            lecture_id=lecture_id,
+        MaterialPage(
+            material_id=material_id,
+            course_id=course_id,
             page_number=page.page_number,
-            slide_text=page.slide_text,
+            page_text=page.page_text,
             layout_data=page.layout_data,
             embedding=(embeddings[index] if embeddings else None),
         )

@@ -24,10 +24,10 @@ public class StorageService {
     this.root = properties.localPath();
   }
 
-  /** {storage}/pdf/{lectureId}.pdf 로 저장하고 절대 경로를 돌려준다. */
-  public Path storePdf(Long lectureId, MultipartFile file) {
+  /** {storage}/pdf/{materialId}.pdf 로 저장하고 절대 경로를 돌려준다. */
+  public Path storePdf(Long materialId, MultipartFile file) {
     requirePdf(file);
-    Path target = pdfPath(lectureId);
+    Path target = pdfPath(materialId);
     try {
       Files.createDirectories(target.getParent());
       try (InputStream in = file.getInputStream()) {
@@ -39,21 +39,29 @@ public class StorageService {
     return target;
   }
 
-  /** 강의에 딸린 파일(PDF, 오디오, 녹음 임시본)을 모두 지운다 (SPEC §2.1-13). */
-  public void deleteLectureFiles(Long lectureId) {
-    for (Path path : new Path[] {pdfPath(lectureId), audioPath(lectureId), pcmPath(lectureId)}) {
+  /** 자료의 PDF 를 지운다 (SPEC §2.1-5). */
+  public void deleteMaterialFiles(Long materialId) {
+    deleteAll(pdfPath(materialId));
+  }
+
+  /** 녹음의 오디오와 임시 PCM 을 지운다 (SPEC §2.1-9). */
+  public void deleteRecordingFiles(Long recordingId) {
+    deleteAll(audioPath(recordingId), pcmPath(recordingId));
+  }
+
+  private void deleteAll(Path... paths) {
+    for (Path path : paths) {
       try {
         Files.deleteIfExists(path);
       } catch (IOException e) {
-        // 파일이 남아도 강의 삭제 자체는 진행한다
         throw new StorageException("파일을 삭제하지 못했습니다: " + path, e);
       }
     }
   }
 
   /** 녹음 중 PCM 을 이어붙일 임시 파일 (16bit LE, 모노). */
-  public OutputStream openPcmSink(Long lectureId) {
-    Path target = pcmPath(lectureId);
+  public OutputStream openPcmSink(Long recordingId) {
+    Path target = pcmPath(recordingId);
     try {
       Files.createDirectories(target.getParent());
       return Files.newOutputStream(target);
@@ -63,13 +71,14 @@ public class StorageService {
   }
 
   /**
-   * 누적된 PCM 에 WAV 헤더를 붙여 {storage}/audio/{lectureId}.wav 로 만든다 (SPEC §2.2-2 의 audio_path).
+   * 누적된 PCM 에 WAV 헤더를 붙여 {storage}/audio/{recordingId}.wav 로 만든다 (SPEC §2.2-2 의
+   * audio_path).
    *
    * @return 만들어진 WAV 경로
    */
-  public Path finalizeWav(Long lectureId, int sampleRate) {
-    Path pcm = pcmPath(lectureId);
-    Path wav = audioPath(lectureId);
+  public Path finalizeWav(Long recordingId, int sampleRate) {
+    Path pcm = pcmPath(recordingId);
+    Path wav = audioPath(recordingId);
     try {
       long dataSize = Files.size(pcm);
       try (OutputStream out = Files.newOutputStream(wav)) {
@@ -83,12 +92,12 @@ public class StorageService {
     }
   }
 
-  private Path pcmPath(Long lectureId) {
-    return root.resolve("audio").resolve(lectureId + ".pcm").toAbsolutePath().normalize();
+  private Path pcmPath(Long recordingId) {
+    return root.resolve("audio").resolve(recordingId + ".pcm").toAbsolutePath().normalize();
   }
 
-  public Path audioPath(Long lectureId) {
-    return root.resolve("audio").resolve(lectureId + ".wav").toAbsolutePath().normalize();
+  public Path audioPath(Long recordingId) {
+    return root.resolve("audio").resolve(recordingId + ".wav").toAbsolutePath().normalize();
   }
 
   /** 44바이트 표준 WAV(PCM 16bit 모노) 헤더. */
@@ -112,8 +121,8 @@ public class StorageService {
     return header.array();
   }
 
-  public Path pdfPath(Long lectureId) {
-    return root.resolve("pdf").resolve(lectureId + ".pdf").toAbsolutePath().normalize();
+  public Path pdfPath(Long materialId) {
+    return root.resolve("pdf").resolve(materialId + ".pdf").toAbsolutePath().normalize();
   }
 
   /** 확장자만으로는 믿을 수 없으므로 매직 넘버(%PDF)까지 확인한다. */

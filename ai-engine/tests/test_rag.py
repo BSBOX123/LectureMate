@@ -1,89 +1,89 @@
 """POST /ai/v1/rag/query 테스트 (SPEC §2.2-3).
 
-임베딩과 LLM 은 대체하고, 검색 결과·SSE 이벤트 순서·형식을 검증한다.
+임베딩과 LLM 은 대체하고, 검색 범위·SSE 이벤트 순서·형식을 검증한다.
+핵심은 **한 과목에 들어 있는 여러 자료와 녹음을 한 번의 질문으로 함께 검색**하는 것이다.
 """
 
 import json
 
 import pytest
 import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
 
-import main
 import services.rag_service as rag_service
-from core.database import AsyncSessionLocal
-
-TEST_EMAIL = "rag-test@example.com"
+from tests.conftest import execute
 
 
 def vector(index: int) -> str:
+    """index 번째만 1인 단위 벡터. 어떤 행이 뽑히는지 예측 가능하게 만든다."""
     values = [0.0] * 1024
     values[index] = 1.0
     return str(values)
 
 
-async def _execute(statement: str, **params):
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(text(statement), params)
-        await session.commit()
-        return result
-
-
 @pytest_asyncio.fixture
-async def lecture_id():
-    result = await _execute(
-        """
-        WITH new_user AS (
-            INSERT INTO users (email, password_hash, name)
-            VALUES (:email, 'x', '테스트') RETURNING id
+async def course(course_id):
+    """자료 2개(각 1쪽)와 녹음 1개(2구간)가 든 과목을 만든다."""
+    algorithms = (
+        await execute(
+            "INSERT INTO course_materials (course_id, title, status)"
+            " VALUES (:c, '알고리즘 5강', 'READY') RETURNING id",
+            c=course_id,
         )
-        INSERT INTO lectures (user_id, title, status)
-        SELECT id, 'RAG 강의', 'READY' FROM new_user RETURNING id
-        """,
-        email=TEST_EMAIL,
-    )
-    created = result.scalar_one()
-    await _execute(
+    ).scalar_one()
+    graphs = (
+        await execute(
+            "INSERT INTO course_materials (course_id, title, status)"
+            " VALUES (:c, '그래프 이론', 'READY') RETURNING id",
+            c=course_id,
+        )
+    ).scalar_one()
+    recording = (
+        await execute(
+            "INSERT INTO course_recordings (course_id, title, status)"
+            " VALUES (:c, '10월 2일 수업', 'READY') RETURNING id",
+            c=course_id,
+        )
+    ).scalar_one()
+
+    await execute(
         """
-        INSERT INTO lecture_slides (lecture_id, page_number, slide_text, layout_data, embedding)
-        VALUES (:id, 1, '다익스트라 최단 경로', '[]', :v0),
-               (:id, 2, '음수 가중치와 벨만 포드', '[]', :v1)
+        INSERT INTO material_pages (material_id, course_id, page_number, page_text, layout_data, embedding)
+        VALUES (:algorithms, :c, 1, '다익스트라 최단 경로', '[]', :v0),
+               (:graphs,     :c, 1, '음수 가중치와 벨만 포드', '[]', :v1)
         """,
-        id=created,
+        algorithms=algorithms,
+        graphs=graphs,
+        c=course_id,
         v0=vector(0),
         v1=vector(1),
     )
-    await _execute(
+    await execute(
         """
-        INSERT INTO lecture_transcripts
-          (lecture_id, start_time_ms, end_time_ms, speaker_text, matched_slide_page, embedding)
-        VALUES (:id, 0, 3000, '다익스트라를 설명합니다', 1, :v0),
-               (:id, 15000, 18000, '음수 가중치는 벨만 포드를 쓰세요', 2, :v1)
+        INSERT INTO recording_segments
+          (recording_id, course_id, start_time_ms, end_time_ms, speaker_text, embedding)
+        VALUES (:r, :c, 0, 3000, '다익스트라를 설명합니다', :v0),
+               (:r, :c, 15000, 18000, '음수 가중치는 벨만 포드를 쓰세요', :v1)
         """,
-        id=created,
+        r=recording,
+        c=course_id,
         v0=vector(0),
         v1=vector(1),
     )
-    yield created
-    await _execute("DELETE FROM users WHERE email = :email", email=TEST_EMAIL)
-
-
-@pytest_asyncio.fixture
-async def client():
-    async with AsyncClient(
-        transport=ASGITransport(app=main.app), base_url="http://test"
-    ) as async_client:
-        yield async_client
+    return {
+        "course_id": course_id,
+        "algorithms": algorithms,
+        "graphs": graphs,
+        "recording": recording,
+    }
 
 
 @pytest.fixture
 def fake_llm(monkeypatch):
-    """질문에 쓰인 컨텍스트를 확인할 수 있도록 호출 인자를 기록한다."""
+    """LLM 에 실제로 넘어간 컨텍스트를 확인할 수 있도록 호출 인자를 기록한다."""
     calls: list[tuple] = []
 
-    def fake_stream(question, slides, transcripts):
-        calls.append((question, [s.page_number for s in slides], [t.start_time_ms for t in transcripts]))
+    def fake_stream(question, pages, speech):
+        calls.append((question, list(pages), list(speech)))
         yield "벨만 "
         yield "포드를 "
         yield "쓰세요."
@@ -94,7 +94,7 @@ def fake_llm(monkeypatch):
 
 @pytest.fixture
 def fake_embedding(monkeypatch):
-    """질문 임베딩이 2쪽(벡터 1)과 가장 가깝도록 고정한다."""
+    """질문 임베딩이 '음수 가중치' 쪽(벡터 1)과 가장 가깝도록 고정한다."""
     values = [0.0] * 1024
     values[1] = 1.0
     monkeypatch.setattr(rag_service, "embed_texts", lambda texts: [values] * len(texts))
@@ -110,12 +110,14 @@ def parse_sse(body: str) -> list[tuple[str, dict]]:
     return events
 
 
-async def test_streams_citations_then_tokens_then_done(
-    client, lecture_id, fake_llm, fake_embedding
-):
+async def test_streams_citations_then_tokens_then_done(client, course, fake_llm, fake_embedding):
     response = await client.post(
         "/ai/v1/rag/query",
-        json={"lecture_id": lecture_id, "question": "음수 가중치는 어떻게 하나요?", "top_k": 1},
+        json={
+            "course_id": course["course_id"],
+            "question": "음수 가중치는 어떻게 하나요?",
+            "top_k": 1,
+        },
     )
 
     assert response.status_code == 200
@@ -128,13 +130,20 @@ async def test_streams_citations_then_tokens_then_done(
     assert set(names[1:-1]) == {"token"}
 
     citations = events[0][1]["citations"]
-    # top_k=1 이므로 슬라이드 1건 + 전사 1건
-    assert [c["source"] for c in citations] == ["SLIDE", "TRANSCRIPT"]
-    # 질문 임베딩과 가장 가까운 2쪽이 선택된다
-    assert citations[0]["pageNumber"] == 2
-    assert citations[1]["pageNumber"] == 2
-    assert citations[1]["startTimeMs"] == 15000
-    assert citations[0]["startTimeMs"] is None
+    # top_k=1 이므로 자료 1건 + 녹음 1건
+    assert [c["source"] for c in citations] == ["MATERIAL", "RECORDING"]
+
+    material, recording = citations
+    # 질문과 가장 가까운 '그래프 이론' 1쪽이 뽑힌다. 어느 자료인지 이름으로 알 수 있어야 한다
+    assert material["materialId"] == course["graphs"]
+    assert material["materialTitle"] == "그래프 이론"
+    assert material["pageNumber"] == 1
+    assert material["startTimeMs"] is None
+
+    assert recording["recordingId"] == course["recording"]
+    assert recording["recordingTitle"] == "10월 2일 수업"
+    assert recording["startTimeMs"] == 15000
+    assert recording["pageNumber"] is None
 
     assert "".join(payload["text"] for name, payload in events if name == "token") == (
         "벨만 포드를 쓰세요."
@@ -142,29 +151,55 @@ async def test_streams_citations_then_tokens_then_done(
     assert events[-1][1] == {"finishReason": "stop"}
 
 
-async def test_passes_retrieved_context_to_llm(client, lecture_id, fake_llm, fake_embedding):
+async def test_searches_across_all_materials_in_course(client, course, fake_llm, fake_embedding):
+    """한 번의 질문이 과목 안의 서로 다른 자료 두 개를 모두 검색한다."""
     await client.post(
         "/ai/v1/rag/query",
-        json={"lecture_id": lecture_id, "question": "벨만 포드?", "top_k": 2},
+        json={"course_id": course["course_id"], "question": "벨만 포드?", "top_k": 2},
     )
 
-    question, slide_pages, transcript_times = fake_llm[0]
+    question, pages, speech = fake_llm[0]
     assert question == "벨만 포드?"
-    # 가까운 순서대로 2건씩
-    assert slide_pages[0] == 2
-    assert len(slide_pages) == 2
-    assert transcript_times[0] == 15000
+    # 가까운 순서: '그래프 이론' 먼저, 그다음 '알고리즘 5강'
+    assert [hit.material_id for hit in pages] == [course["graphs"], course["algorithms"]]
+    assert [hit.material_title for hit in pages] == ["그래프 이론", "알고리즘 5강"]
+    assert [hit.start_time_ms for hit in speech] == [15000, 0]
 
 
-async def test_llm_failure_ends_with_error_event(client, lecture_id, fake_embedding, monkeypatch):
-    def boom(question, slides, transcripts):
+async def test_prompt_separates_materials_from_speech(client, course, fake_llm, fake_embedding):
+    """프롬프트에서 자료와 교수님 발화가 구분되고, 발화에는 시각이 붙는다."""
+    await client.post(
+        "/ai/v1/rag/query",
+        json={"course_id": course["course_id"], "question": "질문", "top_k": 1},
+    )
+
+    question, pages, speech = fake_llm[0]
+    prompt = rag_service.build_user_prompt(question, pages, speech)
+
+    assert "[강의 자료]\n- 그래프 이론 1쪽: 음수 가중치와 벨만 포드" in prompt
+    assert "[교수님 발화]\n- 10월 2일 수업 0:15: 음수 가중치는 벨만 포드를 쓰세요" in prompt
+
+
+async def test_other_courses_are_not_searched(client, course, fake_llm, fake_embedding):
+    """다른 과목의 자료는 검색되지 않는다."""
+    await client.post(
+        "/ai/v1/rag/query",
+        json={"course_id": course["course_id"] + 10_000, "question": "질문"},
+    )
+
+    assert fake_llm[0][1] == []
+    assert fake_llm[0][2] == []
+
+
+async def test_llm_failure_ends_with_error_event(client, course, fake_embedding, monkeypatch):
+    def boom(question, pages, speech):
         raise RuntimeError("LLM 연결 실패")
         yield  # pragma: no cover
 
     monkeypatch.setattr(rag_service, "stream_answer", boom)
 
     response = await client.post(
-        "/ai/v1/rag/query", json={"lecture_id": lecture_id, "question": "질문"}
+        "/ai/v1/rag/query", json={"course_id": course["course_id"], "question": "질문"}
     )
     events = parse_sse(response.text)
 
@@ -172,12 +207,12 @@ async def test_llm_failure_ends_with_error_event(client, lecture_id, fake_embedd
     assert events[-1] == ("done", {"finishReason": "error"})
 
 
-async def test_without_embeddings_returns_empty_citations(client, lecture_id, fake_llm, monkeypatch):
+async def test_without_embeddings_returns_empty_citations(client, course, fake_llm, monkeypatch):
     """임베딩이 꺼져 있으면 검색을 건너뛰고 근거 없이 답한다."""
     monkeypatch.setattr(rag_service, "embed_texts", lambda texts: [None] * len(texts))
 
     response = await client.post(
-        "/ai/v1/rag/query", json={"lecture_id": lecture_id, "question": "질문"}
+        "/ai/v1/rag/query", json={"course_id": course["course_id"], "question": "질문"}
     )
     events = parse_sse(response.text)
 
@@ -185,5 +220,5 @@ async def test_without_embeddings_returns_empty_citations(client, lecture_id, fa
 
 
 async def test_rejects_invalid_request(client):
-    response = await client.post("/ai/v1/rag/query", json={"lecture_id": 1, "question": ""})
+    response = await client.post("/ai/v1/rag/query", json={"course_id": 1, "question": ""})
     assert response.status_code == 422

@@ -10,12 +10,18 @@
 - DB 스키마: Flyway 가 소유한다 (`server-core/src/main/resources/db/migration/`). 기동 시 자동 적용.
 - 스키마 변경은 기존 마이그레이션 파일 수정 금지. 새 파일 `V{n}__설명.sql` 을 추가할 것 (볼륨 삭제 불필요).
 - 통합 테스트는 전용 DB `lecturemate_test` 를 사용한다 (`db/init-test-db.sql`). 개발용 DB 를 가리키게 바꾸지 말 것 — 테스트가 데이터를 삭제한다.
+- DB 접속은 `scripts/db.sh` (대화형) 또는 `scripts/db.sh "select ..."` (일회성), `--test` 로 테스트 DB.
+
+## 도메인 구조 (Step 19 이후)
+과목(`courses`) 하나가 PDF 자료(`course_materials`) N개와 녹음(`course_recordings`) N개를 담는다.
+질의응답은 과목 단위이고, 하위 테이블에 `course_id` 가 있어 `WHERE course_id = X` 로 전체를 검색한다.
+자동 필기·슬라이드 정렬·실시간 자막은 제거됐다 (추후 발전 과제). 되살릴 때를 위해 `layout_data` 는 남아 있다.
 
 ## 로컬 실행 (A안: 전부 로컬)
 - Desktop 의 `LectureMate 시작.app` 아이콘으로 서비스 5개 일괄 기동 (또는 `scripts/lecturemate.sh start`)
 - 중지: `LectureMate 중지.app` 또는 `scripts/lecturemate.sh stop`
 - 앱 재빌드: `scripts/build-apps.sh`
-- LLM 은 로컬 Claude Code CLI 를 headless 로 호출한다 (`LLM_PROVIDER=claude-code`, 기본값).
+- LLM 은 로컬 Claude Code CLI 를 headless 로 호출한다 (`LLM_PROVIDER=claude-code`, 기본값, `CLAUDE_CODE_MODEL=sonnet`).
   사용량 한도나 오프라인 시 `LLM_PROVIDER=ollama LLM_MODEL_NAME=qwen2.5:7b-instruct` 로 되돌린다.
 - 테스트는 실제 LLM 을 호출하지 않는다 (`tests/conftest.py` 가 차단). 필요한 테스트는 함수를 직접 대체한다.
 

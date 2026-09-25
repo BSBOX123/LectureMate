@@ -3,16 +3,15 @@ package com.lecturemate.domain.entity;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import jakarta.persistence.EntityManager;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 
 /**
- * 엔티티 매핑을 실제 db/init.sql 스키마에 대해 검증한다. 각 테스트는 트랜잭션 롤백되어 데이터가 남지 않는다.
+ * 엔티티 매핑을 실제 Flyway 스키마에 대해 검증한다. 각 테스트는 트랜잭션 롤백되어 데이터가 남지 않는다.
  *
- * <p>로컬 postgres 컨테이너가 떠 있어야 한다 ({@code docker compose up -d postgres}).
+ * <p>로컬 postgres 컨테이너가 떠 있어야 한다 ({@code docker-compose up -d postgres}).
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -20,86 +19,99 @@ class EntityMappingTest {
 
   @Autowired private EntityManager em;
 
-  @Test
-  void persistsUserAndLectureWithDefaults() {
+  private Course persistCourse() {
     User user = new User("student@example.com", "hash", "학생");
-    Lecture lecture = new Lecture(user, "컴퓨터 알고리즘 5강");
+    Course course = new Course(user, "데이터베이스");
     em.persist(user);
-    em.persist(lecture);
+    em.persist(course);
+    return course;
+  }
+
+  @Test
+  void persistsCourseWithTimestamps() {
+    Course course = persistCourse();
     em.flush();
     em.clear();
 
-    Lecture found = em.find(Lecture.class, lecture.getId());
-    assertThat(found.getStatus()).isEqualTo(LectureStatus.INITIALIZED);
+    Course found = em.find(Course.class, course.getId());
+    assertThat(found.getTitle()).isEqualTo("데이터베이스");
     assertThat(found.getUser().getEmail()).isEqualTo("student@example.com");
     assertThat(found.getCreatedAt()).isNotNull();
     assertThat(found.getUpdatedAt()).isNotNull();
   }
 
   @Test
-  void readsFastApiOwnedRowsIncludingJsonb() {
-    User user = new User("student@example.com", "hash", "학생");
-    Lecture lecture = new Lecture(user, "컴퓨터 알고리즘 5강");
-    em.persist(user);
-    em.persist(lecture);
+  void courseHoldsManyMaterialsAndRecordings() {
+    Course course = persistCourse();
+    CourseMaterial first = new CourseMaterial(course, "1장 관계형 모델");
+    CourseMaterial second = new CourseMaterial(course, "2장 SQL");
+    CourseRecording recording = new CourseRecording(course, "10월 2일 수업");
+    em.persist(first);
+    em.persist(second);
+    em.persist(recording);
     em.flush();
-
-    // FastAPI 가 적재하는 테이블은 네이티브 SQL 로 흉내낸다.
-    Long slideId =
-        (Long)
-            em.createNativeQuery(
-                    """
-                    INSERT INTO lecture_slides (lecture_id, page_number, slide_text, layout_data)
-                    VALUES (?1, 5, '다익스트라',
-                            '[{"word": "Dijkstra", "bbox": [100.2, 150.4, 180.0, 168.2]}]')
-                    RETURNING id
-                    """,
-                    Long.class)
-                .setParameter(1, lecture.getId())
-                .getSingleResult();
-    em.createNativeQuery(
-            """
-            INSERT INTO lecture_transcripts
-              (lecture_id, start_time_ms, end_time_ms, speaker_text, matched_slide_page)
-            VALUES (?1, 15000, 18000, '오늘 다룰 내용은 다익스트라입니다.', 5)
-            """)
-        .setParameter(1, lecture.getId())
-        .executeUpdate();
-    Long annotationId =
-        (Long)
-            em.createNativeQuery(
-                    """
-                    INSERT INTO slide_annotations (slide_id, lecture_id, page_number,
-                      professor_summary, exam_hints, highlight_bboxes, confidence_score)
-                    VALUES (?1, ?2, 5, '음수 가중치 강조', '벨만-포드 사용',
-                      '[{"word": "음수 가중치", "bbox": [145.2, 310.5, 230.1, 328.0],
-                         "color": "#FFEB3B"}]', 0.92)
-                    RETURNING id
-                    """,
-                    Long.class)
-                .setParameter(1, slideId)
-                .setParameter(2, lecture.getId())
-                .getSingleResult();
     em.clear();
 
-    LectureSlide slide = em.find(LectureSlide.class, slideId);
-    assertThat(slide.getLayoutData())
-        .containsExactly(new LayoutWord("Dijkstra", List.of(100.2, 150.4, 180.0, 168.2)));
-    assertThat(slide.getCreatedAt()).isNotNull();
+    assertThat(
+            em.createQuery(
+                    "select m from CourseMaterial m where m.course.id = :id", CourseMaterial.class)
+                .setParameter("id", course.getId())
+                .getResultList())
+        .hasSize(2);
 
-    LectureTranscript transcript =
-        em.createQuery(
-                "select t from LectureTranscript t where t.lecture.id = :id",
-                LectureTranscript.class)
-            .setParameter("id", lecture.getId())
-            .getSingleResult();
-    assertThat(transcript.getMatchedSlidePage()).isEqualTo(5);
+    // 상태 기본값: 자료는 파싱 대기, 녹음은 아직 소리가 들어오기 전
+    assertThat(em.find(CourseMaterial.class, first.getId()).getStatus())
+        .isEqualTo(MaterialStatus.PROCESSING);
+    assertThat(em.find(CourseRecording.class, recording.getId()).getStatus())
+        .isEqualTo(RecordingStatus.CREATED);
+  }
 
-    SlideAnnotation annotation = em.find(SlideAnnotation.class, annotationId);
-    assertThat(annotation.getSlide().getId()).isEqualTo(slideId);
-    assertThat(annotation.getConfidenceScore()).isEqualTo(0.92);
-    assertThat(annotation.getHighlightBboxes())
-        .containsExactly(
-            new HighlightBox("음수 가중치", List.of(145.2, 310.5, 230.1, 328.0), "#FFEB3B"));
+  @Test
+  void materialBecomesReadyWithPageCount() {
+    Course course = persistCourse();
+    CourseMaterial material = new CourseMaterial(course, "2장 SQL");
+    em.persist(material);
+    material.attachPdf("/files/pdf/" + 1 + ".pdf");
+    material.markReady(128);
+    em.flush();
+    em.clear();
+
+    CourseMaterial found = em.find(CourseMaterial.class, material.getId());
+    assertThat(found.getStatus()).isEqualTo(MaterialStatus.READY);
+    assertThat(found.getTotalPages()).isEqualTo(128);
+    assertThat(found.getPdfUrl()).isEqualTo("/files/pdf/1.pdf");
+  }
+
+  @Test
+  void deletingCourseCascadesToFastApiOwnedRows() {
+    Course course = persistCourse();
+    CourseMaterial material = new CourseMaterial(course, "2장 SQL");
+    em.persist(material);
+    em.flush();
+
+    // FastAPI 가 적재하는 테이블은 네이티브 SQL 로 흉내낸다 (ORM 에 매핑하지 않는다)
+    em.createNativeQuery(
+            """
+            INSERT INTO material_pages (material_id, course_id, page_number, page_text, layout_data)
+            VALUES (?1, ?2, 5, '다익스트라',
+                    '[{"word": "Dijkstra", "bbox": [100.2, 150.4, 180.0, 168.2]}]')
+            """)
+        .setParameter(1, material.getId())
+        .setParameter(2, course.getId())
+        .executeUpdate();
+
+    // DB 의 ON DELETE CASCADE 자체를 확인한다. JPA 로 지우면 Hibernate 가 순서를 정리해 버려서
+    // 제약이 실제로 걸려 있는지 알 수 없다. 영속성 컨텍스트를 비우고 네이티브 삭제를 쓴다.
+    em.clear();
+    em.createNativeQuery("DELETE FROM courses WHERE id = ?1")
+        .setParameter(1, course.getId())
+        .executeUpdate();
+
+    Number remaining =
+        (Number)
+            em.createNativeQuery("SELECT count(*) FROM material_pages WHERE course_id = ?1")
+                .setParameter(1, course.getId())
+                .getSingleResult();
+    assertThat(remaining.intValue()).isZero();
   }
 }

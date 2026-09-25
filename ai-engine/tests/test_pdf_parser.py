@@ -23,8 +23,8 @@ def test_parse_pdf_extracts_text_and_word_bboxes(sample_pdf):
     pages = parse_pdf(sample_pdf)
 
     assert [page.page_number for page in pages] == [1, 2]
-    assert "Dijkstra" in pages[0].slide_text
-    assert "Bellman-Ford" in pages[1].slide_text
+    assert "Dijkstra" in pages[0].page_text
+    assert "Bellman-Ford" in pages[1].page_text
 
     words = [entry["word"] for entry in pages[0].layout_data]
     assert words == ["Dijkstra", "shortest", "path"]
@@ -46,5 +46,5 @@ def test_parse_pdf_skips_empty_pages(tmp_path):
 
     pages = parse_pdf(path)
     assert len(pages) == 1
-    assert pages[0].slide_text == ""
+    assert pages[0].page_text == ""
     assert pages[0].layout_data == []

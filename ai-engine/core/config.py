@@ -35,25 +35,22 @@ class Settings(BaseSettings):
     #   faster-whisper: CPU. Linux/EC2 와 테스트 환경용
     stt_backend: Literal["mlx", "faster-whisper"] = "mlx"
     mlx_model_repo: str = "mlx-community/whisper-large-v3-mlx"
-    # 배치 정밀 전사용 (SPEC §2.2-2). faster-whisper 백엔드에서 사용
+    # 정밀 전사용 (SPEC §2.2-2). faster-whisper 백엔드에서 사용
     whisper_model_name: str = "large-v3"
-    # 실시간 프리뷰 자막용. 작은 모델이어야 3~5초 청크를 실시간으로 따라갈 수 있다 (SPEC §4.2)
-    whisper_realtime_model_name: str = "base"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
-    # None 이면 자동 감지. 매 청크마다 감지하면 느려서 기본은 한국어로 고정한다
+    # None 이면 자동 감지. 감지는 느리고 한국어 강의가 대상이라 기본은 고정한다
     whisper_language: str | None = "ko"
     embedding_model_name: str = "BAAI/bge-m3"
-    # 슬라이드-음성 정렬(§4.2)과 RAG 검색(§2.2-3)에 필요하다.
-    # 끄면 임베딩과 정렬을 건너뛴다 (모델 약 2GB 다운로드를 피하고 싶을 때)
+    # RAG 검색(§2.2-3)에 필요하다.
+    # 끄면 임베딩을 건너뛴다 (모델 약 2GB 다운로드를 피하고 싶을 때)
     embedding_enabled: bool = True
     # 모델 가중치 캐시 경로. None 이면 각 라이브러리(HuggingFace) 기본 캐시 경로 사용
     model_cache_dir: Path | None = None
 
-    # 실시간 오디오 (SPEC §2.1-2: PCM 16kHz 모노 16bit LE, 3~5초 단위)
+    # 녹음 오디오 (SPEC §2.1-2: PCM 16kHz 모노 16bit LE)
     audio_sample_rate: int = 16000
-    realtime_chunk_seconds: float = 3.0
-    # 배치 전사를 나눠 처리하는 단위(초). 통째로 넘기면 Whisper 가 반복 루프에 빠질 수 있다
+    # 전사를 나눠 처리하는 단위(초). 통째로 넘기면 Whisper 가 반복 루프에 빠질 수 있다
     batch_window_seconds: float = 300.0
 
     # LLM 백엔드 선택
@@ -61,13 +58,14 @@ class Settings(BaseSettings):
     #   ollama: OpenAI 호환 엔드포인트 (사용량 한도에 걸렸을 때의 대체 수단)
     llm_provider: Literal["claude-code", "ollama"] = "claude-code"
     claude_code_command: str = "claude"
-    # 비우면 Claude Code 기본 모델을 쓴다
-    claude_code_model: str | None = None
+    # 실측(같은 RAG 질문 3회): opus 7.5~10.0초, haiku 6.6~7.0초, sonnet 4.8~5.1초.
+    # 가장 작은 haiku 가 가장 빠르지는 않다. 복습 질의응답에는 sonnet 품질이면 충분하다.
+    claude_code_model: str | None = "sonnet"
 
     # Ollama / vLLM (llm_provider=ollama 일 때)
     llm_backend_url: str = "http://localhost:11434/v1"
     llm_model_name: str = "qwen2.5:14b-instruct"
-    # CPU 추론은 느리다. 슬라이드 한 장당 이 시간을 넘기면 포기한다.
+    # 답변 하나가 이 시간을 넘기면 포기한다.
     llm_timeout_seconds: float = 180.0
 
 

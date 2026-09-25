@@ -1,76 +1,65 @@
 /**
  * Spring Boot <-> Client API 계약 타입 (SPEC §2.1).
+ *
+ * 과목(course) 하나가 PDF 자료(material) 여러 개와 녹음(recording) 여러 개를 담는다.
+ * 질의응답은 과목 단위로, 그 안의 모든 자료와 녹음을 함께 검색한다.
  */
 
-export type LectureStatus =
-  | "INITIALIZED"
-  | "PROCESSING"
+export type MaterialStatus = "PROCESSING" | "READY" | "FAILED";
+
+export type RecordingStatus =
+  | "CREATED"
   | "RECORDING"
+  | "UPLOADED"
   | "ANALYZING"
   | "READY"
   | "FAILED";
 
-/** §2.1-1 POST /api/v1/lectures 응답 및 강의 메타데이터 조회 응답 */
-export interface LectureResponse {
-  lectureId: number;
+/** §2.1-1 POST /api/v1/courses 응답 및 과목 조회 응답 */
+export interface CourseResponse {
+  courseId: number;
   title: string;
-  status: LectureStatus;
+}
+
+/** §2.1-4 POST /api/v1/courses/{courseId}/materials 응답 및 자료 목록 항목 */
+export interface MaterialResponse {
+  materialId: number;
+  title: string;
+  status: MaterialStatus;
   pdfUrl: string | null;
+  /** 파싱이 끝나면 설정된다 */
+  totalPages: number | null;
+}
+
+/** §2.1-7 POST /api/v1/courses/{courseId}/recordings 응답 및 녹음 목록 항목 */
+export interface RecordingResponse {
+  recordingId: number;
+  title: string;
+  status: RecordingStatus;
   /** 녹음이 끝나 WAV 가 저장되면 설정된다 */
   audioUrl: string | null;
+  /** 전사가 끝나면 설정된다 */
+  durationMs: number | null;
 }
 
-/** §2.1-2 WS /ws/v1/lectures/{lectureId}/audio 서버 → 클라이언트 이벤트 */
-export interface TranscriptPreviewEvent {
-  type: "TRANSCRIPT_PREVIEW";
-  startTimeMs: number;
-  endTimeMs: number;
-  text: string;
-}
-
-/** §2.1-3 POST /api/v1/lectures/{lectureId}/recording/finish 응답 */
-export interface RecordingFinishResponse {
-  lectureId: number;
-  status: LectureStatus;
-  message: string;
-}
-
-
-/** PDF 좌표계 [x1, y1, x2, y2] */
-export type BBox = [number, number, number, number];
-
-export interface Highlight {
-  word: string;
-  bbox: BBox;
-  color: string;
-}
-
-/** §2.1-4 GET /api/v1/lectures/{lectureId}/pages/{pageNumber}/annotations 응답 */
-export interface PageAnnotationResponse {
-  pageNumber: number;
-  professorSummary: string;
-  examHints: string | null;
-  confidenceScore: number;
-  highlights: Highlight[];
-}
-
-/** §2.1-5 POST /api/v1/lectures/{lectureId}/chat 요청 (응답은 SSE) */
+/** §2.1-11 POST /api/v1/courses/{courseId}/chat 요청 (응답은 SSE) */
 export interface ChatRequest {
   question: string;
 }
 
-/** §2.1-12 슬라이드 타임라인 항목 */
-export interface SlideTimelineResponse {
-  pageNumber: number;
-  speechDurationMs: number;
-  hasExamHint: boolean;
-}
-
-/** §2.1-5 citations 이벤트의 근거 한 건 */
+/**
+ * §2.1-11 citations 이벤트의 근거 한 건.
+ *
+ * 자료에서 찾았으면 materialId·materialTitle·pageNumber 가,
+ * 녹음에서 찾았으면 recordingId·recordingTitle·startTimeMs 가 채워진다.
+ */
 export interface Citation {
-  source: "SLIDE" | "TRANSCRIPT";
-  pageNumber: number | null;
+  source: "MATERIAL" | "RECORDING";
   snippet: string;
-  /** TRANSCRIPT 에만 있다 */
+  materialId?: number | null;
+  materialTitle?: string | null;
+  pageNumber?: number | null;
+  recordingId?: number | null;
+  recordingTitle?: string | null;
   startTimeMs?: number | null;
 }

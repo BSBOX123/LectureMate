@@ -10,7 +10,7 @@ import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
 
-/** 클라이언트 오디오 스트림 WebSocket 등록 (SPEC §2.1-2). */
+/** 클라이언트 오디오 스트림 WebSocket 등록 (SPEC §2.1-8). */
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
@@ -28,12 +28,12 @@ public class WebSocketConfig implements WebSocketConfigurer {
   @Override
   public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
     registry
-        .addHandler(audioStreamHandler, "/ws/v1/lectures/*/audio")
+        .addHandler(audioStreamHandler, "/ws/v1/recordings/*/audio")
         .setAllowedOrigins(webClientOrigin);
   }
 
   /**
-   * 오디오 청크(3~5초 PCM)는 기본 버퍼(8KB)보다 크므로 한도를 올린다.
+   * 오디오 청크(수 초 분량 PCM)는 기본 버퍼(8KB)보다 크므로 한도를 올린다.
    *
    * <p>이 빈은 실제 서블릿 컨테이너가 있어야 만들 수 있다. MOCK 환경 테스트에서는 ServerContainer 가 없어 실패하므로
    * test 프로필에서는 제외한다.

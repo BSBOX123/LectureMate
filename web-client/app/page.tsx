@@ -17,8 +17,8 @@ export default function Home() {
             {user.name}님 ({user.email})
           </p>
           <div className="flex gap-3 text-sm">
-            <Link className="rounded bg-zinc-900 px-3 py-1 text-white" href="/lectures">
-              내 강의
+            <Link className="rounded bg-zinc-900 px-3 py-1 text-white" href="/courses">
+              내 과목
             </Link>
             <button className="rounded border px-3 py-1" onClick={() => void logout()}>
               로그아웃

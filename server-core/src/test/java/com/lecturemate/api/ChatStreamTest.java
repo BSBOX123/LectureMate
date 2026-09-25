@@ -9,9 +9,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.lecturemate.client.FastApiClient;
-import com.lecturemate.domain.entity.Lecture;
+import com.lecturemate.domain.entity.Course;
 import com.lecturemate.domain.entity.User;
-import com.lecturemate.repository.LectureRepository;
+import com.lecturemate.repository.CourseRepository;
 import com.lecturemate.repository.UserRepository;
 import com.lecturemate.security.JwtTokenService;
 import java.io.OutputStream;
@@ -29,16 +29,16 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-/** RAG 채팅 SSE 중계 테스트 (SPEC §2.1-5). FastAPI 는 목으로 대체한다. */
+/** 과목 단위 RAG 채팅 SSE 중계 테스트 (SPEC §2.1-11). FastAPI 는 목으로 대체한다. */
 @SpringBootTest
 @AutoConfigureMockMvc
 class ChatStreamTest {
 
-  /** FastAPI 가 보내는 SSE 원문 (SPEC §2.1-5 형식). */
+  /** FastAPI 가 보내는 SSE 원문 (SPEC §2.1-11 형식). */
   private static final String SSE =
       "event: citations\n"
-          + "data: {\"citations\":[{\"source\":\"SLIDE\",\"pageNumber\":5,"
-          + "\"snippet\":\"다익스트라\",\"startTimeMs\":null}]}\n\n"
+          + "data: {\"citations\":[{\"source\":\"MATERIAL\",\"materialTitle\":\"2장 SQL\","
+          + "\"pageNumber\":14,\"snippet\":\"외래 키\"}]}\n\n"
           + "event: token\n"
           + "data: {\"text\":\"음수 \"}\n\n"
           + "event: done\n"
@@ -46,23 +46,23 @@ class ChatStreamTest {
 
   @Autowired private MockMvc mockMvc;
   @Autowired private UserRepository userRepository;
-  @Autowired private LectureRepository lectureRepository;
+  @Autowired private CourseRepository courseRepository;
   @Autowired private JwtTokenService jwtTokenService;
   @MockitoBean private FastApiClient fastApiClient;
 
-  private Long lectureId;
+  private Long courseId;
   private String accessToken;
   private String otherToken;
 
   @BeforeEach
   void setUp() {
-    lectureRepository.deleteAll();
+    courseRepository.deleteAll();
     userRepository.deleteAll();
     User owner = userRepository.save(new User("chat-owner@example.com", "hash", "주인"));
     User other = userRepository.save(new User("chat-other@example.com", "hash", "타인"));
     accessToken = jwtTokenService.issueAccessToken(owner, Instant.now());
     otherToken = jwtTokenService.issueAccessToken(other, Instant.now());
-    lectureId = lectureRepository.save(new Lecture(owner, "질의응답 강의")).getId();
+    courseId = courseRepository.save(new Course(owner, "데이터베이스")).getId();
 
     Mockito.doAnswer(
             invocation -> {
@@ -77,14 +77,14 @@ class ChatStreamTest {
 
   @AfterEach
   void tearDown() {
-    lectureRepository.deleteAll();
+    courseRepository.deleteAll();
     userRepository.deleteAll();
   }
 
   private MvcResult startChat(String token, String body) throws Exception {
     return mockMvc
         .perform(
-            post("/api/v1/lectures/{id}/chat", lectureId)
+            post("/api/v1/courses/{id}/chat", courseId)
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
@@ -108,7 +108,7 @@ class ChatStreamTest {
         .isLessThan(body.indexOf("event: token")); // 출처가 먼저 온다
 
     Mockito.verify(fastApiClient)
-        .streamRagQuery(eq(lectureId), eq("음수 가중치는 왜 안 되나요?"), eq(5), any());
+        .streamRagQuery(eq(courseId), eq("음수 가중치는 왜 안 되나요?"), eq(5), any());
   }
 
   @Test
@@ -122,10 +122,10 @@ class ChatStreamTest {
   }
 
   @Test
-  void rejectsOtherUsersLecture() throws Exception {
+  void rejectsOtherUsersCourse() throws Exception {
     mockMvc
         .perform(
-            post("/api/v1/lectures/{id}/chat", lectureId)
+            post("/api/v1/courses/{id}/chat", courseId)
                 .header("Authorization", "Bearer " + otherToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -139,7 +139,7 @@ class ChatStreamTest {
   void rejectsUnauthenticatedAndEmptyQuestion() throws Exception {
     mockMvc
         .perform(
-            post("/api/v1/lectures/{id}/chat", lectureId)
+            post("/api/v1/courses/{id}/chat", courseId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {"question":"질문"}
@@ -148,7 +148,7 @@ class ChatStreamTest {
 
     mockMvc
         .perform(
-            post("/api/v1/lectures/{id}/chat", lectureId)
+            post("/api/v1/courses/{id}/chat", courseId)
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""

@@ -1,28 +1,5 @@
 import type { PDFDocumentLoadingTask } from "pdfjs-dist";
-import type { BBox } from "@/types/api";
 
-/** 오버레이 하이라이트의 화면 좌표(px). */
-export interface OverlayRect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-/**
- * PDF 포인트 좌표(bbox)를 렌더링된 페이지 위의 CSS 픽셀 좌표로 바꾼다.
- *
- * PyMuPDF와 PDF.js의 기본 뷰포트는 모두 좌상단 원점이라 y 를 뒤집을 필요가 없다.
- */
-export function toOverlayRect(bbox: BBox, scale: number): OverlayRect {
-  const [x1, y1, x2, y2] = bbox;
-  return {
-    left: x1 * scale,
-    top: y1 * scale,
-    width: (x2 - x1) * scale,
-    height: (y2 - y1) * scale,
-  };
-}
 
 /** 페이지 번호를 1..totalPages 범위로 보정한다. totalPages 를 모르면 1 이상만 보장한다. */
 export function clampPage(pageNumber: number, totalPages: number | null): number {

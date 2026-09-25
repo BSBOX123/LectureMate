@@ -1,4 +1,4 @@
-"""복합 벡터 검색 및 LLM 질의응답 라우터 (SPEC §2.2-3: POST /ai/v1/rag/query)."""
+"""과목 단위 복합 벡터 검색 및 LLM 질의응답 라우터 (SPEC §2.2-3: POST /ai/v1/rag/query)."""
 
 from typing import Annotated
 
@@ -14,7 +14,7 @@ router = APIRouter(tags=["rag"])
 
 
 class RagQueryRequest(BaseModel):
-    lecture_id: int = Field(gt=0)
+    course_id: int = Field(gt=0)
     question: str = Field(min_length=1, max_length=2000)
     top_k: int = Field(default=5, ge=1, le=20)
 
@@ -26,7 +26,7 @@ async def query(
 ) -> StreamingResponse:
     """citations → token → done 순서의 SSE 스트림."""
     return StreamingResponse(
-        answer_stream(session, request.lecture_id, request.question, request.top_k),
+        answer_stream(session, request.course_id, request.question, request.top_k),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

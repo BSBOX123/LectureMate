@@ -6,7 +6,8 @@
   실측(1분 한국어 강의): faster-whisper CPU 208초 → mlx 16초.
 - `faster-whisper`: CPU. Linux/EC2 와 테스트 환경에서 쓴다.
 
-실시간 프리뷰는 작은 모델(base), 배치 정밀 전사는 large-v3 를 쓴다.
+전사는 large-v3 를 쓴다. 녹음 중에는 모델을 돌리지 않고(실시간 자막 없음),
+녹음이 끝난 뒤 저장된 WAV 를 한 번에 처리한다.
 """
 
 import logging
@@ -14,8 +15,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-import numpy as np
 
 from core.config import settings
 
@@ -37,29 +36,9 @@ def load_model(model_name: str) -> "WhisperModel":
     )
 
 
-def pcm16_to_float32(pcm: bytes) -> np.ndarray:
-    """16bit LE PCM 바이트를 Whisper 입력용 [-1, 1] float32 배열로 바꾼다."""
-    return np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
-
-
-def transcribe_pcm(pcm: bytes, model_name: str | None = None) -> str:
-    """PCM 청크를 전사한다. 말이 없으면 빈 문자열."""
-    audio = pcm16_to_float32(pcm)
-    if audio.size == 0:
-        return ""
-    model = load_model(model_name or settings.whisper_realtime_model_name)
-    segments, _ = model.transcribe(
-        audio,
-        language=settings.whisper_language,
-        beam_size=1,
-        vad_filter=True,
-    )
-    return " ".join(segment.text.strip() for segment in segments).strip()
-
-
 @dataclass(frozen=True)
 class TranscribedSegment:
-    """전사 세그먼트 하나 (SPEC §3 lecture_transcripts)."""
+    """전사 세그먼트 하나 (SPEC §3 recording_segments)."""
 
     start_time_ms: int
     end_time_ms: int

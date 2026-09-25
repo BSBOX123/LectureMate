@@ -32,39 +32,48 @@ public class FastApiClient {
   }
 
   /** SPEC §2.2-1 요청. FastAPI 는 snake_case 를 쓴다. */
-  public record PdfParseRequest(Long lecture_id, String pdf_path) {}
+  public record MaterialParseRequest(Long material_id, Long course_id, String pdf_path) {}
 
   /** SPEC §2.2-1 응답. */
-  public record PdfParseResponse(Integer total_pages, String status) {}
+  public record MaterialParseResponse(Integer total_pages, String status) {}
 
-  /** SPEC §2.2-2 요청/응답. */
-  public record AnalyzeBatchRequest(String audio_path) {}
-
-  public record AnalyzeBatchResponse(String task_id, String status) {}
-
-  public AnalyzeBatchResponse analyzeBatch(Long lectureId, String audioPath) {
+  public MaterialParseResponse parseMaterial(Long materialId, Long courseId, String pdfPath) {
     return restClient
         .post()
-        .uri("/ai/v1/lectures/{lectureId}/analyze-batch", lectureId)
-        .body(new AnalyzeBatchRequest(audioPath))
+        .uri("/ai/v1/materials/parse")
+        .body(new MaterialParseRequest(materialId, courseId, pdfPath))
         .retrieve()
-        .body(AnalyzeBatchResponse.class);
+        .body(MaterialParseResponse.class);
+  }
+
+  /** SPEC §2.2-2 요청/응답. */
+  public record TranscribeRequest(Long course_id, String audio_path) {}
+
+  public record TranscribeResponse(String task_id, String status) {}
+
+  public TranscribeResponse transcribe(Long recordingId, Long courseId, String audioPath) {
+    return restClient
+        .post()
+        .uri("/ai/v1/recordings/{recordingId}/transcribe", recordingId)
+        .body(new TranscribeRequest(courseId, audioPath))
+        .retrieve()
+        .body(TranscribeResponse.class);
   }
 
   /** SPEC §2.2-3 요청. */
-  public record RagQueryRequest(Long lecture_id, String question, Integer top_k) {}
+  public record RagQueryRequest(Long course_id, String question, Integer top_k) {}
 
   /**
-   * RAG SSE 스트림을 그대로 읽어 소비자에게 넘긴다 (SPEC §2.2-3 → §2.1-5 중계).
+   * RAG SSE 스트림을 그대로 읽어 소비자에게 넘긴다 (SPEC §2.2-3 → §2.1-11 중계).
    *
    * <p>이벤트를 해석하지 않고 바이트를 그대로 흘려보내므로, 형식이 바뀌어도 중계는 영향을 받지 않는다.
    */
-  public void streamRagQuery(Long lectureId, String question, int topK, OutputStream out) {
+  public void streamRagQuery(Long courseId, String question, int topK, OutputStream out) {
     restClient
         .post()
         .uri("/ai/v1/rag/query")
         .accept(MediaType.TEXT_EVENT_STREAM)
-        .body(new RagQueryRequest(lectureId, question, topK))
+        .body(new RagQueryRequest(courseId, question, topK))
         .exchange(
             (request, response) -> {
               try (InputStream in = response.getBody()) {
@@ -77,14 +86,5 @@ public class FastApiClient {
               }
               return null;
             });
-  }
-
-  public PdfParseResponse parsePdf(Long lectureId, String pdfPath) {
-    return restClient
-        .post()
-        .uri("/ai/v1/pdf/parse")
-        .body(new PdfParseRequest(lectureId, pdfPath))
-        .retrieve()
-        .body(PdfParseResponse.class);
   }
 }

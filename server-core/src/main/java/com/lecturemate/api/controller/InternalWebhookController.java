@@ -1,7 +1,6 @@
 package com.lecturemate.api.controller;
 
-import com.lecturemate.domain.entity.LectureStatus;
-import com.lecturemate.service.LectureService;
+import com.lecturemate.service.RecordingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -13,38 +12,40 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * FastAPI 배치 분석 완료 통보 수신 (SPEC §2.2-4).
+ * FastAPI 전사 완료 통보 수신 (SPEC §2.2-4).
  *
  * <p>{@code X-Internal-Secret} 헤더 검증은 {@code InternalSecretFilter} 가 담당한다.
  */
 @RestController
-@RequestMapping("/internal/v1/lectures")
+@RequestMapping("/internal/v1/recordings")
 public class InternalWebhookController {
 
   private static final Logger log = LoggerFactory.getLogger(InternalWebhookController.class);
 
-  private final LectureService lectureService;
+  private final RecordingService recordingService;
 
-  public InternalWebhookController(LectureService lectureService) {
-    this.lectureService = lectureService;
+  public InternalWebhookController(RecordingService recordingService) {
+    this.recordingService = recordingService;
   }
 
   /** SPEC §2.2-4 요청 본문. */
-  public record AnalysisCompleteRequest(
-      Long lectureId, String status, Integer totalPagesAnalyzed, Integer matchedTranscriptSegments) {}
+  public record TranscriptionCompleteRequest(
+      Long recordingId, String status, Integer segmentCount, Integer durationMs) {}
 
-  @PostMapping("/{lectureId}/analysis-complete")
+  @PostMapping("/{recordingId}/transcription-complete")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void analysisComplete(
-      @PathVariable Long lectureId, @RequestBody AnalysisCompleteRequest request) {
-    LectureStatus status =
-        "READY".equals(request.status()) ? LectureStatus.READY : LectureStatus.FAILED;
-    lectureService.changeStatus(lectureId, status);
+  public void transcriptionComplete(
+      @PathVariable Long recordingId, @RequestBody TranscriptionCompleteRequest request) {
+    if ("READY".equals(request.status())) {
+      recordingService.markReady(recordingId, request.durationMs());
+    } else {
+      recordingService.markFailed(recordingId);
+    }
     log.info(
-        "분석 완료 통보 lectureId={} status={} pages={} segments={}",
-        lectureId,
-        status,
-        request.totalPagesAnalyzed(),
-        request.matchedTranscriptSegments());
+        "전사 완료 통보 recordingId={} status={} segments={} 길이={}ms",
+        recordingId,
+        request.status(),
+        request.segmentCount(),
+        request.durationMs());
   }
 }

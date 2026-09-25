@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from core.database import engine
-from routers import audio, pdf, rag
+from routers import materials, rag, recordings
 
 
 @asynccontextmanager
@@ -21,6 +21,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="LectureMate AI Engine", lifespan=lifespan)
 
 API_PREFIX = "/ai/v1"
-app.include_router(pdf.router, prefix=API_PREFIX)
-app.include_router(audio.router, prefix=API_PREFIX)
+app.include_router(materials.router, prefix=API_PREFIX)
+app.include_router(recordings.router, prefix=API_PREFIX)
 app.include_router(rag.router, prefix=API_PREFIX)
