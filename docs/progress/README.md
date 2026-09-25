@@ -25,7 +25,8 @@
 | 17 | LLM 백엔드를 Claude Code 로 교체 | 완료 | `871ad43` | [step-17-claude-code-llm.md](step-17-claude-code-llm.md) |
 | 18 | 실제 강의 사용 후 개선 (자막 토글·전사 속도·분석 안내) | 완료 | `5c17930` | [step-18-real-lecture-fixes.md](step-18-real-lecture-fixes.md) |
 | 19 | **과목 중심 전환 및 기능 축소** (자동 필기·정렬·실시간 자막 제거) | 완료 | `3b956ff` | [step-19-course-centric.md](step-19-course-centric.md) |
-| 20 | 채팅 맥락 이어받기 (후속 질문) | 완료 (검토 대기) | - | [step-20-chat-context.md](step-20-chat-context.md) |
+| 20 | 채팅 맥락 이어받기 (후속 질문) | 완료 | `352bc44` | [step-20-chat-context.md](step-20-chat-context.md) |
+| 21 | 전사 용어 사전 검토(미도입) + 전사 구간 축소 + 옛 테이블 정리 | 완료 (검토 대기) | - | [step-21-glossary-and-cleanup.md](step-21-glossary-and-cleanup.md) |
 
 > GitHub: [BSBOX123/LectureMate](https://github.com/BSBOX123/LectureMate) — main 푸시 완료, CI 3개 잡 통과
 
@@ -95,6 +96,9 @@
 | 2026-09-25 | 출처에 자료·녹음 이름 포함 (`MATERIAL`/`RECORDING`) | 자료가 여러 개라 "5쪽"만으로는 어느 자료인지 알 수 없다 | Step 19 |
 | 2026-09-25 | 대화 맥락은 **서버에 저장하지 않고 클라이언트가 매번 전송** | 세션 테이블은 저장·만료·정리가 따라온다. 필요한 건 직전 몇 마디뿐이고 화면이 이미 들고 있다 | Step 20 |
 | 2026-09-25 | 후속 질문은 **직전 질문을 검색어에 붙여** 임베딩 (LLM 재작성 미도입) | 재작성은 호출이 늘어 느려진다. 실측상 11쪽(정답 자료)이 맥락 있을 때만 검색됐다 | Step 20 |
+| 2026-09-25 | **전사 용어 사전 미도입** (`STT_GLOSSARY_ENABLED=false`, 코드는 유지) | 7회 실측: 사전 없으면 "외래키·주키" 정답, 사전 4종 전부 "외의 key·주 key" 오류. 영어 제거 가설도 반증됨 | Step 21 |
+| 2026-09-25 | **`BATCH_WINDOW_SECONDS` 300 → 120** | 같은 측정에서 165초 → 112초, 쓰레기 구간 최장 118자 → 60자. 구간을 짧게 끊으면 피해가 그 구간에서 멈춘다 | Step 21 |
+| 2026-09-25 | **옛 테이블 4개 삭제 (V5)** | 임베딩 값까지 동일(코사인 거리 1e-9 이내) 확인 후 삭제. `~/lecturemate/backup/` 에 2.7MB 백업 | Step 21 |
 
 ## 미결 질문
 
@@ -133,13 +137,13 @@
 - [x] ~~시험 힌트 확인~~ → 자동 필기 제거. 교수님 강조는 RAG 답변으로 확인한다 (Step 19)
 - [ ] Claude Code 프로세스 시작 2~3초 — 세션 재사용(`--resume`)으로 단축 검토 (Step 17)
 - [x] ~~슬라이드 45장 = LLM 45회 호출~~ → 자동 필기 제거로 해소 (Step 19)
-- [ ] 전사 전문 용어 오인식("외래 키"→"외의 키"). initial_prompt 로 용어 사전 제공 검토 (Step 18)
+- [x] ~~전사 전문 용어 오인식. initial_prompt 로 용어 사전 제공 검토~~ → 만들어서 7회 측정했으나 오히려 악화. 미도입 (Step 21)
 - [x] ~~채팅이 이전 질문 맥락을 이어받지 않음~~ → `history` 전달 + 검색어에 직전 질문 결합 (Step 20)
 - [ ] 같은 쪽 발화가 여러 건이면 출처 뱃지가 중복 표시됨 (Step 13)
 - [ ] RAG 검색 품질 평가 수단 없음 (top_k=5 고정) (Step 13)
 - [ ] Docker Ollama 볼륨(모델 6.6GB) 정리 여부 (Step 12)
 - [ ] 녹음 19번 전사 미실행 (`UPLOADED`, 36분 기준 약 15분 소요) (Step 19)
-- [ ] 옛 테이블 4개(`lectures`, `lecture_slides`, `lecture_transcripts`, `slide_annotations`) 정리 마이그레이션 (Step 19)
+- [x] ~~옛 테이블 4개 정리~~ → V5 에서 삭제, 백업 보관 (Step 21)
 - [ ] 자료를 다른 과목으로 옮기는 기능 없음 (V4 처럼 SQL 로 해결해야 함) (Step 19)
 - [ ] 자동 필기·슬라이드 정렬 복원 (발전 과제). `layout_data` 는 남겨 뒀다 (Step 19)
 - [ ] 대화가 길어지면 4마디 밖의 맥락은 사라진다. 새로 고치면 대화가 사라진다 (Step 20)
