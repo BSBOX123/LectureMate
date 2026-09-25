@@ -53,6 +53,13 @@ async def client():
 
 
 @pytest_asyncio.fixture
+async def session():
+    """서비스 함수를 직접 부를 때 쓰는 DB 세션."""
+    async with AsyncSessionLocal() as opened:
+        yield opened
+
+
+@pytest_asyncio.fixture
 async def course_id():
     """테스트용 user/course 행을 만들고 끝나면 지운다 (하위 행은 FK CASCADE 로 함께 지워진다)."""
     await execute("DELETE FROM users WHERE email = :email", email=TEST_EMAIL)

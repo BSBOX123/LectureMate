@@ -16,9 +16,11 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from core.config import settings
 from core.database import AsyncSessionLocal, get_session
 from core.models import RecordingSegment
 from services.embedding_service import embed_texts
+from services.glossary_service import build_glossary
 from services.spring_webhook import notify_transcription_complete
 from services.stt_service import transcribe_file
 
@@ -63,9 +65,15 @@ async def transcribe(
 
 
 async def run_transcription(recording_id: int, course_id: int, audio_path: str) -> None:
-    """전사 → 임베딩 → recording_segments 적재 → Webhook 통보."""
+    """용어 사전 → 전사 → 임베딩 → recording_segments 적재 → Webhook 통보."""
     try:
-        segments = await run_in_threadpool(transcribe_file, audio_path)
+        # 같은 과목의 자료에서 전문 용어를 뽑아 Whisper 에 미리 알려 준다.
+        # 실패해도 None 이 와서 전사는 그대로 진행된다.
+        glossary = None
+        if settings.stt_glossary_enabled:
+            async with AsyncSessionLocal() as session:
+                glossary = await build_glossary(session, course_id)
+        segments = await run_in_threadpool(transcribe_file, audio_path, None, glossary)
         embeddings = await run_in_threadpool(embed_texts, [segment.text for segment in segments])
 
         async with AsyncSessionLocal() as session:

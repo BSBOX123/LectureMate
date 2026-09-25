@@ -45,19 +45,33 @@ class TranscribedSegment:
     text: str
 
 
-def transcribe_file(audio_path: str | Path, model_name: str | None = None) -> list[TranscribedSegment]:
-    """WAV 파일 전체를 정밀 전사한다 (SPEC §2.2-2)."""
+def transcribe_file(
+    audio_path: str | Path,
+    model_name: str | None = None,
+    initial_prompt: str | None = None,
+) -> list[TranscribedSegment]:
+    """WAV 파일 전체를 정밀 전사한다 (SPEC §2.2-2).
+
+    `initial_prompt` 은 과목 자료에서 뽑은 용어 사전이다 (glossary_service). 전문 용어를 미리
+    알려 주면 같은 발음을 그 용어로 옮길 가능성이 올라간다.
+    """
     if settings.stt_backend == "mlx":
-        return _transcribe_file_mlx(audio_path)
-    return _transcribe_file_faster_whisper(audio_path, model_name)
+        return _transcribe_file_mlx(audio_path, initial_prompt)
+    return _transcribe_file_faster_whisper(audio_path, model_name, initial_prompt)
 
 
-def _transcribe_file_mlx(audio_path: str | Path) -> list[TranscribedSegment]:
+def _transcribe_file_mlx(
+    audio_path: str | Path, initial_prompt: str | None = None
+) -> list[TranscribedSegment]:
     """구간을 나눠 전사한다.
 
     통째로 넘기면 Whisper 가 반복 루프에 빠져 끝나지 않을 수 있다(36분 강의에서 4.5시간 경과 후에도
     미완료). `condition_on_previous_text=False` 로 앞 구간 텍스트를 물고 늘어지지 않게 하고,
     구간을 나눠 한 구간이 망가져도 전체가 멈추지 않게 한다.
+
+    용어 사전(`initial_prompt`)은 구간마다 다시 넘긴다. Whisper 는 `condition_on_previous_text`
+    가 꺼져 있으면 첫 30초 뒤에 프롬프트를 버리므로(`prompt_reset_since`), 구간을 나눠 호출하는
+    지금 구조가 오히려 사전을 여러 번 먹이는 셈이 된다.
     """
     import mlx_whisper
     import numpy as np
@@ -75,6 +89,7 @@ def _transcribe_file_mlx(audio_path: str | Path) -> list[TranscribedSegment]:
             path_or_hf_repo=settings.mlx_model_repo,
             language=settings.whisper_language,
             condition_on_previous_text=False,
+            initial_prompt=initial_prompt,
         )
         base_ms = int(offset / settings.audio_sample_rate * 1000)
         segments.extend(
@@ -105,13 +120,14 @@ def _load_wav_float32(audio_path: str | Path):
 
 
 def _transcribe_file_faster_whisper(
-    audio_path: str | Path, model_name: str | None
+    audio_path: str | Path, model_name: str | None, initial_prompt: str | None = None
 ) -> list[TranscribedSegment]:
     model = load_model(model_name or settings.whisper_model_name)
     segments, _ = model.transcribe(
         str(audio_path),
         language=settings.whisper_language,
         vad_filter=True,
+        initial_prompt=initial_prompt,
     )
     return [
         TranscribedSegment(

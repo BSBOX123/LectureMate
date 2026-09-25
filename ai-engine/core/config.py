@@ -50,8 +50,15 @@ class Settings(BaseSettings):
 
     # 녹음 오디오 (SPEC §2.1-2: PCM 16kHz 모노 16bit LE)
     audio_sample_rate: int = 16000
-    # 전사를 나눠 처리하는 단위(초). 통째로 넘기면 Whisper 가 반복 루프에 빠질 수 있다
-    batch_window_seconds: float = 300.0
+    # 전사를 나눠 처리하는 단위(초). 통째로 넘기면 Whisper 가 반복 루프에 빠질 수 있다.
+    # 300초 → 120초로 낮췄다. 실측(4분 구간): 165초 → 112초로 빨라지고, Whisper 가 무의미한
+    # 토큰을 뱉는 구간도 최장 118자 → 60자로 줄었다. 구간을 짧게 끊으면 피해가 그 구간에서 멈춘다.
+    batch_window_seconds: float = 120.0
+    # 과목 자료에서 뽑은 용어 사전을 Whisper 에 넘길지 (glossary_service).
+    # **기본은 끔.** 실측에서 사전을 넣으면 오히려 핵심 용어를 틀렸다 (사전 없이 "외래키·주키",
+    # 사전 있으면 "외의 key·주 key"). 측정 표는 docs/progress/step-21 참고.
+    # 자료 성격이 다른 과목에서는 도움이 될 수 있어 코드는 남겨 두었다.
+    stt_glossary_enabled: bool = False
 
     # LLM 백엔드 선택
     #   claude-code: 로컬 Claude Code CLI (구독 사용량, 품질 높음) — 기본값

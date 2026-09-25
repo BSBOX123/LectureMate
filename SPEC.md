@@ -183,7 +183,11 @@ courses (과목)
    * `POST /ai/v1/recordings/{recording_id}/transcribe`
    * Request: `{ "course_id": 17, "audio_path": "/storage/audio/21.wav" }`
    * Response (202 Accepted): `{ "task_id": "transcribe_21_20260925", "status": "QUEUED" }`
-   * 전사 → 임베딩 → `recording_segments` 적재 → §2.2-4 Webhook 통보
+   * **용어 사전 → 전사 → 임베딩 → `recording_segments` 적재 → §2.2-4 Webhook 통보**
+   * 용어 사전(`STT_GLOSSARY_ENABLED`, **기본 꺼짐**): 같은 과목의 `material_pages` 텍스트에서
+     전문 용어를 뽑아 Whisper 의 `initial_prompt` 로 넘긴다. 실측에서 **사전을 넣으면 오히려 핵심
+     용어를 틀렸다**(사전 없이 "외래키·주키" → 사전 있으면 "외의 key·주 key"). 자료 성격이 다른
+     과목에서는 도움이 될 수 있어 코드는 남기고 기본값만 껐다. 측정 표는 `docs/progress/step-21` 참고
 3. **과목 단위 RAG 검색 및 응답 생성**
    * `POST /ai/v1/rag/query`
    * Request: `{ "course_id": 17, "question": "...", "top_k": 5, "history": [ ... ] }` (`top_k` 생략 시 5, `history` 는 §2.1-11 과 같은 형식)
@@ -332,7 +336,8 @@ CREATE INDEX idx_segments_vector ON recording_segments USING hnsw (embedding vec
   * `rag.py`: 과목 단위 복합 벡터 검색 및 LLM 질의응답 라우터
 * **`services/`**
   * `pdf_parser.py`: PyMuPDF(fitz)로 페이지별 텍스트 및 Bounding Box(`rect`) 추출
-  * `stt_service.py`: Whisper 백엔드 관리 (`STT_BACKEND=mlx|faster-whisper`). 반복 루프를 막기 위해 5분 단위로 나눠 처리한다
+  * `stt_service.py`: Whisper 백엔드 관리 (`STT_BACKEND=mlx|faster-whisper`). 반복 루프를 막기 위해 구간을 나눠 처리하고, 구간마다 용어 사전을 다시 넘긴다
+  * `glossary_service.py`: 과목 자료에서 전문 용어를 뽑아 Whisper 용어 사전을 만든다 (LLM 1회 호출). PDF 에서 뽑은 한국어는 띄어쓰기가 깨져 있어 빈도 기반 추출로는 쓸 만한 용어가 나오지 않는다. 기본값은 꺼짐 (위 §2.2-2 참고)
   * `embedding_service.py`: BAAI/bge-m3 임베딩 (1024차원, 정규화)
   * `rag_service.py`: pgvector 하이브리드 쿼리(자료 페이지 + 녹음 발화) 구성 및 LLM 스트리밍 답변 생성. 자료 내용과 교수님 발화를 구분해 답하도록 프롬프트를 구성한다
   * `llm_client.py`: LLM 호출 추상화 (`LLM_PROVIDER=claude-code|ollama`)
@@ -371,6 +376,8 @@ CREATE INDEX idx_segments_vector ON recording_segments USING hnsw (embedding vec
   * `INTERNAL_API_SECRET=...` (Spring Boot와 동일한 값)
   * `STT_BACKEND=mlx` (Apple GPU. Linux/CI 는 `faster-whisper`)
   * `WHISPER_MODEL_NAME=large-v3`
+  * `BATCH_WINDOW_SECONDS=120` (전사를 나눠 처리하는 단위(초). 실측에서 300초보다 120초가 빠르고 쓰레기 구간도 적었다)
+  * `STT_GLOSSARY_ENABLED=false` (과목 자료 기반 용어 사전. 기본 꺼짐 — §2.2-2 참고)
   * `EMBEDDING_MODEL_NAME=BAAI/bge-m3`
   * `LLM_PROVIDER=claude-code` (대체: `ollama`)
   * `CLAUDE_CODE_MODEL=sonnet` (실측상 opus 보다 약 2배 빠르고 답변이 간결하다)

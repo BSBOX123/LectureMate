@@ -16,6 +16,9 @@
 과목(`courses`) 하나가 PDF 자료(`course_materials`) N개와 녹음(`course_recordings`) N개를 담는다.
 질의응답은 과목 단위이고, 하위 테이블에 `course_id` 가 있어 `WHERE course_id = X` 로 전체를 검색한다.
 자동 필기·슬라이드 정렬·실시간 자막은 제거됐다 (추후 발전 과제). 되살릴 때를 위해 `layout_data` 는 남아 있다.
+강의 중심 시절 테이블(`lectures`, `lecture_slides`, `lecture_transcripts`, `slide_annotations`)은 V5 에서 삭제했다.
+되살려야 하면 `~/lecturemate/backup/legacy-lecture-tables-20260925.sql` 을 넣으면 된다.
+전사는 그 과목 자료에서 뽑은 용어 사전을 Whisper `initial_prompt` 로 넘긴다 (`glossary_service`).
 
 ## 로컬 실행 (A안: 전부 로컬)
 - Desktop 의 `LectureMate 시작.app` 아이콘으로 서비스 5개 일괄 기동 (또는 `scripts/lecturemate.sh start`)
