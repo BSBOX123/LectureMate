@@ -1,5 +1,6 @@
 import { parseSseBuffer } from "@/lib/sse";
 import type {
+  ChatTurn,
   Citation,
   CourseResponse,
   MaterialResponse,
@@ -136,6 +137,7 @@ export const courseApi = {
   chat: async (
     courseId: number,
     question: string,
+    history: ChatTurn[],
     handlers: {
       onCitations: (citations: Citation[]) => void;
       onToken: (text: string) => void;
@@ -151,7 +153,7 @@ export const courseApi = {
         "Content-Type": "application/json",
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, history }),
     });
     if (!response.ok || !response.body) {
       throw new ApiError(response.status, "답변을 받지 못했습니다.");

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { courseApi } from "@/lib/api";
-import type { Citation } from "@/types/api";
+import type { ChatTurn, Citation } from "@/types/api";
 
 interface CourseChatPanelProps {
   courseId: number;
@@ -15,6 +15,9 @@ interface Message {
   text: string;
   citations?: Citation[];
 }
+
+/** 프롬프트로 보낼 이전 대화 수. 많이 보내면 답변이 느려진다 (서버도 4마디로 자른다). */
+const HISTORY_TURNS = 4;
 
 /** 1043880 → "17:23" */
 function timestamp(startTimeMs: number): string {
@@ -56,6 +59,11 @@ export default function CourseChatPanel({ courseId, onCitationClick }: CourseCha
     setQuestion("");
     setError(null);
     setStreaming(true);
+    // 이번 질문을 넣기 전의 대화가 맥락이다. 빈 답변(생성 실패)은 보내지 않는다
+    const history: ChatTurn[] = messages
+      .filter((message) => message.text.trim().length > 0)
+      .slice(-HISTORY_TURNS)
+      .map((message) => ({ role: message.role, text: message.text }));
     setMessages((previous) => [
       ...previous,
       { role: "user", text: asked },
@@ -75,6 +83,7 @@ export default function CourseChatPanel({ courseId, onCitationClick }: CourseCha
       await courseApi.chat(
         courseId,
         asked,
+        history,
         {
           onCitations: (citations) => updateAnswer((message) => ({ ...message, citations })),
           onToken: (text) =>
@@ -100,7 +109,8 @@ export default function CourseChatPanel({ courseId, onCitationClick }: CourseCha
       <div className="flex-1 space-y-3 overflow-y-auto p-3 text-sm">
         {messages.length === 0 && (
           <p className="text-zinc-500">
-            이 과목의 자료와 녹음을 모두 찾아서 답합니다. 교수님이 말씀하신 내용도 함께 알려 줍니다.
+            이 과목의 자료와 녹음을 모두 찾아서 답합니다. 교수님이 말씀하신 내용도 함께 알려 주고,
+            이어서 묻는 질문은 앞의 대화를 기억합니다.
           </p>
         )}
         {messages.map((message, index) => (

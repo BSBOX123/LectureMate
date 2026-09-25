@@ -61,19 +61,28 @@ public class FastApiClient {
   }
 
   /** SPEC §2.2-3 요청. */
-  public record RagQueryRequest(Long course_id, String question, Integer top_k) {}
+  public record RagQueryRequest(
+      Long course_id, String question, Integer top_k, java.util.List<ChatTurn> history) {}
+
+  /** 이전 대화 한 마디. 서버는 대화를 저장하지 않고 클라이언트가 매번 보낸다. */
+  public record ChatTurn(String role, String text) {}
 
   /**
    * RAG SSE 스트림을 그대로 읽어 소비자에게 넘긴다 (SPEC §2.2-3 → §2.1-11 중계).
    *
    * <p>이벤트를 해석하지 않고 바이트를 그대로 흘려보내므로, 형식이 바뀌어도 중계는 영향을 받지 않는다.
    */
-  public void streamRagQuery(Long courseId, String question, int topK, OutputStream out) {
+  public void streamRagQuery(
+      Long courseId,
+      String question,
+      int topK,
+      java.util.List<ChatTurn> history,
+      OutputStream out) {
     restClient
         .post()
         .uri("/ai/v1/rag/query")
         .accept(MediaType.TEXT_EVENT_STREAM)
-        .body(new RagQueryRequest(courseId, question, topK))
+        .body(new RagQueryRequest(courseId, question, topK, history))
         .exchange(
             (request, response) -> {
               try (InputStream in = response.getBody()) {

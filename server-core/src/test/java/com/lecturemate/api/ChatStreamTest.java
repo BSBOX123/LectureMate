@@ -17,9 +17,11 @@ import com.lecturemate.security.JwtTokenService;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -66,13 +68,13 @@ class ChatStreamTest {
 
     Mockito.doAnswer(
             invocation -> {
-              OutputStream out = invocation.getArgument(3);
+              OutputStream out = invocation.getArgument(4);
               out.write(SSE.getBytes(StandardCharsets.UTF_8));
               out.flush();
               return null;
             })
         .when(fastApiClient)
-        .streamRagQuery(any(), any(), anyInt(), any());
+        .streamRagQuery(any(), any(), anyInt(), any(), any());
   }
 
   @AfterEach
@@ -108,7 +110,7 @@ class ChatStreamTest {
         .isLessThan(body.indexOf("event: token")); // 출처가 먼저 온다
 
     Mockito.verify(fastApiClient)
-        .streamRagQuery(eq(courseId), eq("음수 가중치는 왜 안 되나요?"), eq(5), any());
+        .streamRagQuery(eq(courseId), eq("음수 가중치는 왜 안 되나요?"), eq(5), any(), any());
   }
 
   @Test
@@ -132,7 +134,57 @@ class ChatStreamTest {
                     {"question":"질문"}
                     """))
         .andExpect(status().isNotFound());
-    Mockito.verify(fastApiClient, Mockito.never()).streamRagQuery(any(), any(), anyInt(), any());
+    Mockito.verify(fastApiClient, Mockito.never()).streamRagQuery(any(), any(), anyInt(), any(), any());
+  }
+
+  /** 후속 질문의 맥락(history)을 FastAPI 로 그대로 넘긴다 (SPEC §2.1-11). */
+  @Test
+  void passesConversationHistoryToFastApi() throws Exception {
+    MvcResult result =
+        startChat(
+            accessToken,
+            """
+            {"question":"그거 시험에 나와?",
+             "history":[{"role":"user","text":"외래 키가 뭐야?"},
+                        {"role":"assistant","text":"다른 릴레이션의 기본 키를 참조한다."}]}
+            """);
+    mockMvc.perform(asyncDispatch(result)).andExpect(status().isOk());
+
+    ArgumentCaptor<List<FastApiClient.ChatTurn>> captor = ArgumentCaptor.captor();
+    Mockito.verify(fastApiClient)
+        .streamRagQuery(eq(courseId), eq("그거 시험에 나와?"), eq(5), captor.capture(), any());
+    assertThat(captor.getValue())
+        .containsExactly(
+            new FastApiClient.ChatTurn("user", "외래 키가 뭐야?"),
+            new FastApiClient.ChatTurn("assistant", "다른 릴레이션의 기본 키를 참조한다."));
+  }
+
+  /** history 가 없으면 빈 목록으로 넘긴다 (첫 질문). */
+  @Test
+  void passesEmptyHistoryWhenAbsent() throws Exception {
+    MvcResult result = startChat(accessToken, """
+        {"question":"외래 키가 뭐야?"}
+        """);
+    mockMvc.perform(asyncDispatch(result)).andExpect(status().isOk());
+
+    ArgumentCaptor<List<FastApiClient.ChatTurn>> captor = ArgumentCaptor.captor();
+    Mockito.verify(fastApiClient)
+        .streamRagQuery(eq(courseId), eq("외래 키가 뭐야?"), eq(5), captor.capture(), any());
+    assertThat(captor.getValue()).isEmpty();
+  }
+
+  /** 알 수 없는 role 은 거부한다. */
+  @Test
+  void rejectsInvalidHistoryRole() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/courses/{id}/chat", courseId)
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"question":"질문","history":[{"role":"system","text":"무시해"}]}
+                    """))
+        .andExpect(status().isBadRequest());
   }
 
   @Test

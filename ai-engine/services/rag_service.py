@@ -30,10 +30,12 @@ SYSTEM_PROMPT = """너는 대학생의 강의 복습을 돕는 어시스턴트�
 - 자료를 가리킬 때는 "데이터베이스 3장 14쪽"처럼 자료 이름과 쪽수를 함께 쓴다.
 - 교수님 발화는 음성 인식 결과라 전문 용어가 잘못 적혔을 수 있다. 문맥으로 알아서 이해하고
   자료의 표기를 따른다. 표기가 틀렸다는 이야기를 답변에 쓰지는 않는다.
+- [이전 대화]가 있으면 그 흐름을 이어서 답한다. "그거", "방금 그건" 같은 말은 이전 대화에서
+  무엇을 가리키는지 찾아 이해한다.
 - 근거가 없으면 모른다고 답한다. 지어내지 않는다.
 - 화면에 그대로 표시되므로 마크다운(**, ##, - 등) 없이 평문으로 답한다."""
 
-USER_PROMPT = """[강의 자료]
+USER_PROMPT = """{history}[강의 자료]
 {materials}
 
 [교수님 발화]
@@ -41,6 +43,22 @@ USER_PROMPT = """[강의 자료]
 
 [질문]
 {question}"""
+
+HISTORY_BLOCK = """[이전 대화]
+{turns}
+
+"""
+
+# 프롬프트와 검색어에 넣을 이전 대화 개수. 짧게 유지해야 답변이 느려지지 않는다.
+MAX_HISTORY_TURNS = 4
+
+
+@dataclass(frozen=True)
+class ChatTurn:
+    """이전 대화 한 마디 (SPEC §2.1-11 history)."""
+
+    role: str  # user | assistant
+    text: str
 
 
 @dataclass(frozen=True)
@@ -85,11 +103,26 @@ def sse_event(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def retrieval_query(question: str, history: list[ChatTurn]) -> str:
+    """검색에 쓸 문장을 만든다.
+
+    "그거 시험에 나와?" 같은 후속 질문은 그 자체로는 검색어가 되지 못한다. 직전 사용자 질문을
+    앞에 붙여 맥락을 준다. LLM 으로 질문을 재작성하는 방법이 더 정확하겠지만 호출이 한 번 늘어
+    답변이 느려진다. 빠른 응답을 우선해 이 방식을 골랐다.
+    """
+    previous = [turn.text for turn in history if turn.role == "user"]
+    return f"{previous[-1]} {question}" if previous else question
+
+
 async def search(
-    session: AsyncSession, course_id: int, question: str, top_k: int
+    session: AsyncSession,
+    course_id: int,
+    question: str,
+    top_k: int,
+    history: list[ChatTurn] | None = None,
 ) -> tuple[list[PageHit], list[SpeechHit]]:
     """질문과 가까운 자료 페이지/발화 구간을 과목 전체에서 각각 top_k 개 찾는다."""
-    embedding = await _embed(question)
+    embedding = await _embed(retrieval_query(question, history or []))
     if embedding is None:
         return [], []
 
@@ -181,8 +214,14 @@ def _timestamp(start_time_ms: int) -> str:
     return f"{total_seconds // 60}:{total_seconds % 60:02d}"
 
 
-def build_user_prompt(question: str, pages: list[PageHit], speech: list[SpeechHit]) -> str:
+def build_user_prompt(
+    question: str,
+    pages: list[PageHit],
+    speech: list[SpeechHit],
+    history: list[ChatTurn] | None = None,
+) -> str:
     return USER_PROMPT.format(
+        history=_history_block(history or []),
         materials="\n".join(
             f"- {hit.material_title} {hit.page_number}쪽: {_snippet(hit.text, 500)}"
             for hit in pages
@@ -197,28 +236,48 @@ def build_user_prompt(question: str, pages: list[PageHit], speech: list[SpeechHi
     )
 
 
+def _history_block(history: list[ChatTurn]) -> str:
+    """이전 대화가 없으면 아무것도 넣지 않는다 (빈 섹션은 모델을 헷갈리게 한다)."""
+    if not history:
+        return ""
+    turns = "\n".join(
+        f"{'학생' if turn.role == 'user' else '어시스턴트'}: {_snippet(turn.text, 300)}"
+        for turn in history[-MAX_HISTORY_TURNS:]
+    )
+    return HISTORY_BLOCK.format(turns=turns)
+
+
 def stream_answer(
-    question: str, pages: list[PageHit], speech: list[SpeechHit]
+    question: str,
+    pages: list[PageHit],
+    speech: list[SpeechHit],
+    history: list[ChatTurn] | None = None,
 ) -> Iterator[str]:
     """검색한 컨텍스트로 LLM 답변 토큰을 순서대로 돌려준다 (동기 이터레이터).
 
     LLM 백엔드(Claude Code / Ollama)는 llm_client 가 고른다.
     """
-    yield from llm_stream(SYSTEM_PROMPT, build_user_prompt(question, pages, speech))
+    yield from llm_stream(SYSTEM_PROMPT, build_user_prompt(question, pages, speech, history))
 
 
 async def answer_stream(
-    session: AsyncSession, course_id: int, question: str, top_k: int
+    session: AsyncSession,
+    course_id: int,
+    question: str,
+    top_k: int,
+    history: list[ChatTurn] | None = None,
 ) -> AsyncIterator[str]:
     """citations → token... → done 순서로 SSE 문자열을 내보낸다 (SPEC §2.2-3)."""
     from starlette.concurrency import iterate_in_threadpool
 
-    pages, speech = await search(session, course_id, question, top_k)
+    pages, speech = await search(session, course_id, question, top_k, history)
     citations = build_citations(pages, speech)
     yield sse_event("citations", {"citations": [asdict(c) for c in citations]})
 
     try:
-        async for token in iterate_in_threadpool(stream_answer(question, pages, speech)):
+        async for token in iterate_in_threadpool(
+            stream_answer(question, pages, speech, history)
+        ):
             yield sse_event("token", {"text": token})
     except Exception:  # noqa: BLE001 - 스트리밍 중 실패도 클라이언트에 알려야 한다
         log.exception("RAG 답변 생성 실패 course_id=%s", course_id)

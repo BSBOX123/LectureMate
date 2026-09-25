@@ -24,7 +24,8 @@
 | 16 | 화면 다듬기 (가드·타임라인·삭제·재시도) | 완료 | `695cf2b` | [step-16-ui-polish.md](step-16-ui-polish.md) |
 | 17 | LLM 백엔드를 Claude Code 로 교체 | 완료 | `871ad43` | [step-17-claude-code-llm.md](step-17-claude-code-llm.md) |
 | 18 | 실제 강의 사용 후 개선 (자막 토글·전사 속도·분석 안내) | 완료 | `5c17930` | [step-18-real-lecture-fixes.md](step-18-real-lecture-fixes.md) |
-| 19 | **과목 중심 전환 및 기능 축소** (자동 필기·정렬·실시간 자막 제거) | 완료 (검토 대기) | - | [step-19-course-centric.md](step-19-course-centric.md) |
+| 19 | **과목 중심 전환 및 기능 축소** (자동 필기·정렬·실시간 자막 제거) | 완료 | `3b956ff` | [step-19-course-centric.md](step-19-course-centric.md) |
+| 20 | 채팅 맥락 이어받기 (후속 질문) | 완료 (검토 대기) | - | [step-20-chat-context.md](step-20-chat-context.md) |
 
 > GitHub: [BSBOX123/LectureMate](https://github.com/BSBOX123/LectureMate) — main 푸시 완료, CI 3개 잡 통과
 
@@ -92,6 +93,8 @@
 | 2026-09-25 | **녹음 종료 시 전사 자동 시작** | "분석하는 방법을 모르겠다"는 Step 18 문제. WAV 생성 후 요청하므로 순서 보장 | Step 19 |
 | 2026-09-25 | **LLM 모델 `opus` → `sonnet`** | 실측 3회: opus 7.5~10.0초, haiku 6.6~7.0초, sonnet 4.8~5.1초. 가장 낮은 haiku 가 가장 빠르지 않다 | Step 19 |
 | 2026-09-25 | 출처에 자료·녹음 이름 포함 (`MATERIAL`/`RECORDING`) | 자료가 여러 개라 "5쪽"만으로는 어느 자료인지 알 수 없다 | Step 19 |
+| 2026-09-25 | 대화 맥락은 **서버에 저장하지 않고 클라이언트가 매번 전송** | 세션 테이블은 저장·만료·정리가 따라온다. 필요한 건 직전 몇 마디뿐이고 화면이 이미 들고 있다 | Step 20 |
+| 2026-09-25 | 후속 질문은 **직전 질문을 검색어에 붙여** 임베딩 (LLM 재작성 미도입) | 재작성은 호출이 늘어 느려진다. 실측상 11쪽(정답 자료)이 맥락 있을 때만 검색됐다 | Step 20 |
 
 ## 미결 질문
 
@@ -131,7 +134,7 @@
 - [ ] Claude Code 프로세스 시작 2~3초 — 세션 재사용(`--resume`)으로 단축 검토 (Step 17)
 - [x] ~~슬라이드 45장 = LLM 45회 호출~~ → 자동 필기 제거로 해소 (Step 19)
 - [ ] 전사 전문 용어 오인식("외래 키"→"외의 키"). initial_prompt 로 용어 사전 제공 검토 (Step 18)
-- [ ] 채팅이 이전 질문 맥락을 이어받지 않음 (매 질문 독립) (Step 13)
+- [x] ~~채팅이 이전 질문 맥락을 이어받지 않음~~ → `history` 전달 + 검색어에 직전 질문 결합 (Step 20)
 - [ ] 같은 쪽 발화가 여러 건이면 출처 뱃지가 중복 표시됨 (Step 13)
 - [ ] RAG 검색 품질 평가 수단 없음 (top_k=5 고정) (Step 13)
 - [ ] Docker Ollama 볼륨(모델 6.6GB) 정리 여부 (Step 12)
@@ -139,3 +142,5 @@
 - [ ] 옛 테이블 4개(`lectures`, `lecture_slides`, `lecture_transcripts`, `slide_annotations`) 정리 마이그레이션 (Step 19)
 - [ ] 자료를 다른 과목으로 옮기는 기능 없음 (V4 처럼 SQL 로 해결해야 함) (Step 19)
 - [ ] 자동 필기·슬라이드 정렬 복원 (발전 과제). `layout_data` 는 남겨 뒀다 (Step 19)
+- [ ] 대화가 길어지면 4마디 밖의 맥락은 사라진다. 새로 고치면 대화가 사라진다 (Step 20)
+- [ ] LLM 질문 재작성(query rewriting) 미도입. 검색 품질 평가 수단이 생기면 비교 검토 (Step 20)

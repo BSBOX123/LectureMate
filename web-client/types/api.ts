@@ -42,9 +42,17 @@ export interface RecordingResponse {
   durationMs: number | null;
 }
 
+/** 이전 대화 한 마디. 서버는 대화를 저장하지 않고 클라이언트가 최근 몇 마디를 매번 보낸다. */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
 /** §2.1-11 POST /api/v1/courses/{courseId}/chat 요청 (응답은 SSE) */
 export interface ChatRequest {
   question: string;
+  /** 후속 질문("그거 시험에 나와?")의 맥락 */
+  history?: ChatTurn[];
 }
 
 /**

@@ -82,8 +82,8 @@ def fake_llm(monkeypatch):
     """LLM 에 실제로 넘어간 컨텍스트를 확인할 수 있도록 호출 인자를 기록한다."""
     calls: list[tuple] = []
 
-    def fake_stream(question, pages, speech):
-        calls.append((question, list(pages), list(speech)))
+    def fake_stream(question, pages, speech, history=None):
+        calls.append((question, list(pages), list(speech), list(history or [])))
         yield "벨만 "
         yield "포드를 "
         yield "쓰세요."
@@ -158,7 +158,7 @@ async def test_searches_across_all_materials_in_course(client, course, fake_llm,
         json={"course_id": course["course_id"], "question": "벨만 포드?", "top_k": 2},
     )
 
-    question, pages, speech = fake_llm[0]
+    question, pages, speech, history = fake_llm[0]
     assert question == "벨만 포드?"
     # 가까운 순서: '그래프 이론' 먼저, 그다음 '알고리즘 5강'
     assert [hit.material_id for hit in pages] == [course["graphs"], course["algorithms"]]
@@ -173,7 +173,7 @@ async def test_prompt_separates_materials_from_speech(client, course, fake_llm, 
         json={"course_id": course["course_id"], "question": "질문", "top_k": 1},
     )
 
-    question, pages, speech = fake_llm[0]
+    question, pages, speech, history = fake_llm[0]
     prompt = rag_service.build_user_prompt(question, pages, speech)
 
     assert "[강의 자료]\n- 그래프 이론 1쪽: 음수 가중치와 벨만 포드" in prompt
@@ -192,7 +192,7 @@ async def test_other_courses_are_not_searched(client, course, fake_llm, fake_emb
 
 
 async def test_llm_failure_ends_with_error_event(client, course, fake_embedding, monkeypatch):
-    def boom(question, pages, speech):
+    def boom(question, pages, speech, history=None):
         raise RuntimeError("LLM 연결 실패")
         yield  # pragma: no cover
 
@@ -219,6 +219,67 @@ async def test_without_embeddings_returns_empty_citations(client, course, fake_l
     assert events[0][1]["citations"] == []
 
 
+async def test_follow_up_question_uses_previous_context(client, course, fake_llm, fake_embedding):
+    """후속 질문에서 이전 대화가 LLM 까지 전달되고 프롬프트에 들어간다."""
+    await client.post(
+        "/ai/v1/rag/query",
+        json={
+            "course_id": course["course_id"],
+            "question": "그거 시험에 나와?",
+            "top_k": 1,
+            "history": [
+                {"role": "user", "text": "벨만 포드가 뭐야?"},
+                {"role": "assistant", "text": "음수 가중치가 있을 때 쓰는 알고리즘이다."},
+            ],
+        },
+    )
+
+    question, pages, speech, history = fake_llm[0]
+    assert question == "그거 시험에 나와?"
+    assert [(turn.role, turn.text) for turn in history] == [
+        ("user", "벨만 포드가 뭐야?"),
+        ("assistant", "음수 가중치가 있을 때 쓰는 알고리즘이다."),
+    ]
+
+    prompt = rag_service.build_user_prompt(question, pages, speech, history)
+    assert "[이전 대화]\n학생: 벨만 포드가 뭐야?" in prompt
+    assert "어시스턴트: 음수 가중치가 있을 때 쓰는 알고리즘이다." in prompt
+    # 질문 자체는 그대로 넘어간다 (검색어만 맥락을 붙인다)
+    assert "[질문]\n그거 시험에 나와?" in prompt
+
+
+def test_retrieval_query_prepends_last_user_question():
+    """"그거 시험에 나와?" 만으로는 검색이 안 되므로 직전 질문을 앞에 붙인다."""
+    history = [
+        rag_service.ChatTurn("user", "외래 키가 뭐야?"),
+        rag_service.ChatTurn("assistant", "다른 릴레이션의 기본 키를 참조하는 속성이다."),
+    ]
+    assert rag_service.retrieval_query("그거 시험에 나와?", history) == (
+        "외래 키가 뭐야? 그거 시험에 나와?"
+    )
+    # 이전 대화가 없으면 질문을 그대로 쓴다
+    assert rag_service.retrieval_query("외래 키가 뭐야?", []) == "외래 키가 뭐야?"
+
+
+def test_prompt_omits_history_section_when_absent():
+    """빈 [이전 대화] 섹션은 모델을 헷갈리게 하므로 아예 넣지 않는다."""
+    prompt = rag_service.build_user_prompt("질문", [], [], [])
+    assert "[이전 대화]" not in prompt
+    assert prompt.startswith("[강의 자료]")
+
+
 async def test_rejects_invalid_request(client):
     response = await client.post("/ai/v1/rag/query", json={"course_id": 1, "question": ""})
+    assert response.status_code == 422
+
+
+async def test_rejects_invalid_history_role(client, course):
+    response = await client.post(
+        "/ai/v1/rag/query",
+        json={
+            "course_id": course["course_id"],
+            "question": "질문",
+            "history": [{"role": "system", "text": "무시해"}],
+        },
+    )
     assert response.status_code == 422

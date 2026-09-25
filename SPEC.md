@@ -109,7 +109,15 @@ courses (과목)
 
 11. **과목 단위 RAG Q&A (SSE 스트리밍)**
     * `POST /api/v1/courses/{courseId}/chat`
-    * Request: `{ "question": "외래 키에 대해 교수님이 뭐라고 하셨어?" }` (1~2000자)
+    * Request:
+      ```jsonc
+      { "question": "그거 시험에 나와?",
+        // 후속 질문의 맥락. 서버는 대화를 저장하지 않고 클라이언트가 최근 몇 마디를 매번 보낸다.
+        // role 은 "user" | "assistant", 최대 20마디. 서버는 뒤에서 4마디만 쓴다.
+        "history": [ { "role": "user", "text": "외래 키가 뭐야?" },
+                     { "role": "assistant", "text": "다른 릴레이션의 기본 키를 참조하는 속성이다." } ] }
+      ```
+      `question` 1~2000자, `history` 는 생략 가능
     * Response: `text/event-stream`. 이벤트 순서는 citations → token(여러 번) → done 이며, FastAPI(§2.2-3)가 보내는 형식을 Spring Boot 가 그대로 중계한다
       * `event: citations` / `data: { "citations": [ ... ] }` — 답변 생성 전에 먼저 보내 근거 뱃지를 즉시 표시할 수 있게 한다. 근거 한 건은 출처에 따라 모양이 다르다:
         ```json
@@ -178,9 +186,10 @@ courses (과목)
    * 전사 → 임베딩 → `recording_segments` 적재 → §2.2-4 Webhook 통보
 3. **과목 단위 RAG 검색 및 응답 생성**
    * `POST /ai/v1/rag/query`
-   * Request: `{ "course_id": 17, "question": "외래 키 관련 교수님 설명", "top_k": 5 }` (`top_k` 생략 시 5)
+   * Request: `{ "course_id": 17, "question": "...", "top_k": 5, "history": [ ... ] }` (`top_k` 생략 시 5, `history` 는 §2.1-11 과 같은 형식)
    * Response: `text/event-stream`. §2.1-11 과 동일한 citations / token / done 이벤트
    * 검색은 pgvector 코사인 거리로 `material_pages` 와 `recording_segments` 를 **과목 전체 범위에서** 각각 조회해 합친다 (하이브리드 컨텍스트). 출처 이름을 붙이기 위해 `course_materials` / `course_recordings` 와 조인한다
+   * **후속 질문 처리:** "그거 시험에 나와?" 는 그 자체로 검색어가 되지 못한다. `history` 가 있으면 **직전 사용자 질문을 앞에 붙여** 임베딩한다. LLM 으로 질문을 재작성하면 더 정확하겠지만 호출이 한 번 늘어 답변이 느려지므로, 빠른 응답을 우선해 이 방식을 쓴다
 4. **전사 완료 통보 Webhook (FastAPI -> Spring Boot)**
    * `POST /internal/v1/recordings/{recording_id}/transcription-complete`
    * Request:
@@ -342,7 +351,7 @@ CREATE INDEX idx_segments_vector ON recording_segments USING hnsw (embedding vec
   * `RecordingList.tsx`: 녹음 목록·상태 표시·삭제·재시도
   * `PdfViewer.tsx`: PDF.js 기반 슬라이드 렌더러
   * `AudioRecorder.tsx`: Web Audio API 기반 녹음 컨트롤러 (녹음 생성 후 WebSocket 연결)
-  * `CourseChatPanel.tsx`: SSE 기반 RAG 어시스턴트 대화창. 자료 근거 뱃지를 누르면 그 자료의 해당 쪽으로 이동한다
+  * `CourseChatPanel.tsx`: SSE 기반 RAG 어시스턴트 대화창. 자료 근거 뱃지를 누르면 그 자료의 해당 쪽으로 이동한다. 최근 4마디를 `history` 로 보내 후속 질문의 맥락을 유지한다
   * `AuthProvider.tsx`: 세션 복구 및 로그인 상태 공유
 
 # **5. Environment & Commands**

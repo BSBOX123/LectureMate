@@ -4,7 +4,9 @@ import com.lecturemate.client.FastApiClient;
 import com.lecturemate.service.CourseService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -34,8 +36,20 @@ public class ChatController {
     this.fastApiClient = fastApiClient;
   }
 
-  /** SPEC §2.1-11 요청 본문. */
-  public record ChatRequest(@NotBlank @Size(max = 2000) String question) {}
+  /**
+   * SPEC §2.1-11 요청 본문.
+   *
+   * <p>{@code history} 는 후속 질문("그거 시험에 나와?")의 맥락이다. 서버는 대화를 저장하지 않고
+   * 클라이언트가 최근 몇 마디를 매번 보낸다.
+   */
+  public record ChatRequest(
+      @NotBlank @Size(max = 2000) String question,
+      @Valid @Size(max = 20) List<ChatTurn> history) {}
+
+  /** 이전 대화 한 마디. */
+  public record ChatTurn(
+      @Pattern(regexp = "user|assistant") String role,
+      @NotBlank @Size(max = 4000) String text) {}
 
   // SSE 기본 인코딩은 UTF-8 이지만, 한국어가 깨지지 않도록 charset 을 명시한다
   @PostMapping(
@@ -47,6 +61,12 @@ public class ChatController {
       @Valid @RequestBody ChatRequest request) {
     // 스트리밍을 시작하기 전에 소유자를 확인한다 (아니면 404)
     courseService.requireOwned(Long.valueOf(jwt.getSubject()), courseId);
-    return out -> fastApiClient.streamRagQuery(courseId, request.question(), TOP_K, out);
+    List<FastApiClient.ChatTurn> history =
+        request.history() == null
+            ? List.of()
+            : request.history().stream()
+                .map(turn -> new FastApiClient.ChatTurn(turn.role(), turn.text()))
+                .toList();
+    return out -> fastApiClient.streamRagQuery(courseId, request.question(), TOP_K, history, out);
   }
 }
