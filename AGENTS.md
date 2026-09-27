@@ -10,6 +10,12 @@
 - DB 스키마: Flyway 가 소유한다 (`server-core/src/main/resources/db/migration/`). 기동 시 자동 적용.
 - 스키마 변경은 기존 마이그레이션 파일 수정 금지. 새 파일 `V{n}__설명.sql` 을 추가할 것 (볼륨 삭제 불필요).
 - 통합 테스트는 전용 DB `lecturemate_test` 를 사용한다 (`db/init-test-db.sql`). 개발용 DB 를 가리키게 바꾸지 말 것 — 테스트가 데이터를 삭제한다.
+- **도커는 OrbStack 이다.** 이 맥에는 학교 수업용 Docker Desktop 도 함께 깔려 있고(Oracle 21c XE 실습,
+  XE 는 amd64 전용이라 OrbStack/Rosetta 에서는 `ORA-00442` 로 뜨지 않는다), Docker Desktop 이
+  실행되면 `~/.docker/config.json` 의 `currentContext` 를 `desktop-linux` 로 바꿔 버린다.
+  그러면 OrbStack 의 docker 바이너리조차 없는 소켓을 찾아 실패한다 (PATH 순서로는 해결 불가).
+  그래서 `scripts/lecturemate.sh` 와 `scripts/db.sh` 는 `DOCKER_HOST` 로 OrbStack 소켓을 직접
+  가리킨다. 도커를 쓰는 스크립트를 새로 만들면 같은 처리를 넣을 것.
 - DB 접속은 `scripts/db.sh` (대화형) 또는 `scripts/db.sh "select ..."` (일회성), `--test` 로 테스트 DB.
 
 ## 도메인 구조 (Step 19 이후)
