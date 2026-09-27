@@ -5,7 +5,11 @@
 #   scripts/db.sh --test                테스트 DB(lecturemate_test) 로 접속
 
 set -euo pipefail
-export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.orbstack/bin:$PATH"
+export PATH="$HOME/.orbstack/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+# Docker Desktop 이 도커 컨텍스트를 가져가면 OrbStack 컨테이너를 못 찾는다 (lecturemate.sh 주석 참고)
+ORBSTACK_SOCK="$HOME/.orbstack/run/docker.sock"
+[ -S "$ORBSTACK_SOCK" ] && export DOCKER_HOST="unix://$ORBSTACK_SOCK"
 
 DB=lecturemate
 if [ "${1:-}" = "--test" ]; then

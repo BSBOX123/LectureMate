@@ -10,7 +10,20 @@ LOG_DIR="$HOME/Library/Logs/LectureMate"
 WEB_URL="http://localhost:3000"
 
 # GUI 에서 실행하면 PATH 가 최소라 Homebrew 와 사용자 bin 을 직접 추가한다
-export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$HOME/.orbstack/bin:$PATH"
+export PATH="$HOME/.orbstack/bin:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
+
+ORBSTACK_SOCK="$HOME/.orbstack/run/docker.sock"
+
+# 도커를 OrbStack 소켓으로 고정한다.
+#
+# Docker Desktop 이 설치되면 ~/.docker/config.json 의 currentContext 를 desktop-linux 로 바꾸고,
+# 그러면 **OrbStack 의 docker 바이너리조차** 없는 소켓(~/.docker/run/docker.sock)을 찾아 실패한다.
+# PATH 순서를 바꿔도 해결되지 않아서(컨텍스트가 바이너리보다 우선) DOCKER_HOST 로 지정한다.
+# OrbStack 이 꺼져 있으면 소켓이 없으므로, 기동을 기다리며 다시 시도한다.
+use_orbstack_socket() {
+  [ -S "$ORBSTACK_SOCK" ] || return 1
+  export DOCKER_HOST="unix://$ORBSTACK_SOCK"
+}
 
 mkdir -p "$LOG_DIR"
 
@@ -30,18 +43,21 @@ wait_for() { # wait_for <포트> <이름> <최대 초>
 }
 
 ensure_docker() { # OrbStack 이 꺼져 있으면 켜고 도커 데몬이 응답할 때까지 기다린다
-  if docker ps >/dev/null 2>&1; then
+  if use_orbstack_socket && docker ps >/dev/null 2>&1; then
     return 0
   fi
   say "OrbStack 시작..."
   open -a OrbStack 2>/dev/null || { say "✗ OrbStack 을 찾지 못했습니다"; return 1; }
   local waited=0
   while [ "$waited" -lt 60 ]; do
-    docker ps >/dev/null 2>&1 && { say "✓ Docker 준비됨"; return 0; }
+    if use_orbstack_socket && docker ps >/dev/null 2>&1; then
+      say "✓ Docker 준비됨"
+      return 0
+    fi
     sleep 2
     waited=$((waited + 2))
   done
-  say "✗ OrbStack 이 60초 안에 준비되지 않았습니다"
+  say "✗ OrbStack 이 60초 안에 준비되지 않았습니다 (소켓: $ORBSTACK_SOCK)"
   return 1
 }
 
