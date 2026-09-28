@@ -70,6 +70,7 @@ async def test_accepts_and_stores_segments(
     # 과목 자료에서 뽑은 용어 사전이 Whisper 로 넘어간다
     assert fake_transcription == [(str(audio_file), "이 강의에서 쓰는 용어: 외래 키, 기본 키")]
 
+    # 원본 세그먼트는 Whisper 가 끊어 준 그대로 (요약·재청킹용)
     result = await execute(
         "SELECT start_time_ms, end_time_ms, speaker_text, course_id"
         " FROM recording_segments WHERE recording_id = :id ORDER BY start_time_ms",
@@ -79,8 +80,23 @@ async def test_accepts_and_stores_segments(
     assert len(rows) == 2
     assert rows[0].speaker_text == "오늘은 다익스트라를 공부합니다."
     assert rows[1].start_time_ms == 3000
-    # 과목 단위 검색을 위해 세그먼트에도 course_id 가 들어가야 한다
+    # 과목 단위 검색을 위해 course_id 가 들어가야 한다
     assert rows[0].course_id == course_id
+
+    # 검색용 덩어리도 함께 만들어진다. 짧은 두 세그먼트는 한 덩어리로 묶인다
+    chunks = (
+        await execute(
+            "SELECT start_time_ms, end_time_ms, chunk_text, course_id, embedding IS NULL AS no_vec"
+            " FROM recording_chunks WHERE recording_id = :id ORDER BY start_time_ms",
+            id=recording_id,
+        )
+    ).all()
+    assert len(chunks) == 1
+    assert chunks[0].chunk_text == (
+        "오늘은 다익스트라를 공부합니다. 음수 가중치는 벨만 포드를 씁니다."
+    )
+    assert (chunks[0].start_time_ms, chunks[0].end_time_ms) == (0, 6000)
+    assert chunks[0].course_id == course_id
 
     # 녹음 길이는 마지막 세그먼트의 끝 시각이다
     assert webhook_calls == [(recording_id, "READY", 2, 6000)]
@@ -95,10 +111,16 @@ async def test_retry_replaces_previous_segments(
             json={"course_id": course_id, "audio_path": str(audio_file)},
         )
 
-    result = await execute(
-        "SELECT count(*) FROM recording_segments WHERE recording_id = :id", id=recording_id
-    )
-    assert result.scalar_one() == 2
+    assert (
+        await execute(
+            "SELECT count(*) FROM recording_segments WHERE recording_id = :id", id=recording_id
+        )
+    ).scalar_one() == 2
+    assert (
+        await execute(
+            "SELECT count(*) FROM recording_chunks WHERE recording_id = :id", id=recording_id
+        )
+    ).scalar_one() == 1
 
 
 async def test_missing_audio_file_returns_404(client, course_id, recording_id):

@@ -57,10 +57,11 @@ async def course(course_id):
         v0=vector(0),
         v1=vector(1),
     )
+    # 검색 대상은 덩어리(recording_chunks)다. 세그먼트는 요약용 원본이라 임베딩이 없다
     await execute(
         """
-        INSERT INTO recording_segments
-          (recording_id, course_id, start_time_ms, end_time_ms, speaker_text, embedding)
+        INSERT INTO recording_chunks
+          (recording_id, course_id, start_time_ms, end_time_ms, chunk_text, embedding)
         VALUES (:r, :c, 0, 3000, '다익스트라를 설명합니다', :v0),
                (:r, :c, 15000, 18000, '음수 가중치는 벨만 포드를 쓰세요', :v1)
         """,

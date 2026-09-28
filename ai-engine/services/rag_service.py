@@ -1,7 +1,10 @@
 """pgvector 하이브리드 검색 + LLM 스트리밍 답변 (SPEC §2.2-3, §4.2).
 
 검색 범위는 **과목 전체**다. 한 과목에 들어 있는 모든 PDF 자료(material_pages)와
-모든 녹음(recording_segments)을 각각 찾아 함께 컨텍스트로 넣는다.
+모든 녹음(recording_chunks)을 각각 찾아 함께 컨텍스트로 넣는다.
+
+녹음은 Whisper 세그먼트가 아니라 **약 300자로 묶은 덩어리**를 검색한다. 세그먼트는 평균 21자로
+너무 잘아 임베딩할 의미가 없었다 (chunking 모듈 주석 참고).
 
 두 출처를 모두 쓰는 이유가 이 서비스의 핵심이다. 자료에 적힌 정의와 교수님이 실제로
 말씀하신 설명·강조점이 다르기 때문에, 답변에서 둘을 구분해 보여 줘야 복습에 쓸모가 있다.
@@ -15,7 +18,7 @@ from dataclasses import asdict, dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.models import CourseMaterial, CourseRecording, MaterialPage, RecordingSegment
+from core.models import CourseMaterial, CourseRecording, MaterialPage, RecordingChunk
 from services.embedding_service import embed_texts
 from services.llm_client import stream as llm_stream
 
@@ -144,13 +147,13 @@ async def search(
     ).all()
     speech_rows = (
         await session.execute(
-            select(RecordingSegment, CourseRecording.title)
-            .join(CourseRecording, CourseRecording.id == RecordingSegment.recording_id)
+            select(RecordingChunk, CourseRecording.title)
+            .join(CourseRecording, CourseRecording.id == RecordingChunk.recording_id)
             .where(
-                RecordingSegment.course_id == course_id,
-                RecordingSegment.embedding.is_not(None),
+                RecordingChunk.course_id == course_id,
+                RecordingChunk.embedding.is_not(None),
             )
-            .order_by(RecordingSegment.embedding.cosine_distance(embedding))
+            .order_by(RecordingChunk.embedding.cosine_distance(embedding))
             .limit(top_k)
         )
     ).all()
@@ -166,12 +169,12 @@ async def search(
     ]
     speech = [
         SpeechHit(
-            recording_id=segment.recording_id,
+            recording_id=chunk.recording_id,
             recording_title=title,
-            start_time_ms=segment.start_time_ms,
-            text=segment.speaker_text,
+            start_time_ms=chunk.start_time_ms,
+            text=chunk.chunk_text,
         )
-        for segment, title in speech_rows
+        for chunk, title in speech_rows
     ]
     return pages, speech
 

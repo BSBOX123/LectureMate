@@ -18,7 +18,8 @@ from starlette.concurrency import run_in_threadpool
 
 from core.config import settings
 from core.database import AsyncSessionLocal, get_session
-from core.models import RecordingSegment
+from core.models import RecordingChunk, RecordingSegment
+from services.chunking import build_chunks
 from services.embedding_service import embed_texts
 from services.glossary_service import build_glossary
 from services.spring_webhook import notify_transcription_complete
@@ -99,12 +100,21 @@ async def run_transcription(recording_id: int, course_id: int, audio_path: str) 
             async with AsyncSessionLocal() as session:
                 glossary = await build_glossary(session, course_id)
         segments = await run_in_threadpool(transcribe_file, audio_path, None, glossary)
-        embeddings = await run_in_threadpool(embed_texts, [segment.text for segment in segments])
+
+        # Whisper 가 끊어 준 단위는 평균 21자로 너무 잘아 검색에 쓸 수 없다 (chunking 참고).
+        # 원본은 그대로 남기고, 검색용으로 약 300자 덩어리를 따로 만들어 임베딩한다.
+        chunks = build_chunks(
+            [(s.start_time_ms, s.end_time_ms, s.text) for s in segments]
+        )
+        embeddings = await run_in_threadpool(embed_texts, [chunk.text for chunk in chunks])
 
         async with AsyncSessionLocal() as session:
             # 재시도 시 중복되지 않도록 기존 결과를 지우고 다시 쌓는다
             await session.execute(
                 delete(RecordingSegment).where(RecordingSegment.recording_id == recording_id)
+            )
+            await session.execute(
+                delete(RecordingChunk).where(RecordingChunk.recording_id == recording_id)
             )
             session.add_all(
                 RecordingSegment(
@@ -113,17 +123,28 @@ async def run_transcription(recording_id: int, course_id: int, audio_path: str) 
                     start_time_ms=segment.start_time_ms,
                     end_time_ms=segment.end_time_ms,
                     speaker_text=segment.text,
+                )
+                for segment in segments
+            )
+            session.add_all(
+                RecordingChunk(
+                    recording_id=recording_id,
+                    course_id=course_id,
+                    start_time_ms=chunk.start_time_ms,
+                    end_time_ms=chunk.end_time_ms,
+                    chunk_text=chunk.text,
                     embedding=embedding,
                 )
-                for segment, embedding in zip(segments, embeddings, strict=True)
+                for chunk, embedding in zip(chunks, embeddings, strict=True)
             )
             await session.commit()
 
         duration_ms = max((segment.end_time_ms for segment in segments), default=0)
         log.info(
-            "전사 완료 recording_id=%s segments=%s 길이=%sms",
+            "전사 완료 recording_id=%s segments=%s chunks=%s 길이=%sms",
             recording_id,
             len(segments),
+            len(chunks),
             duration_ms,
         )
         await notify_transcription_complete(recording_id, "READY", len(segments), duration_ms)

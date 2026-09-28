@@ -64,7 +64,12 @@ class MaterialPage(Base):
 
 
 class RecordingSegment(Base):
-    """녹음 전사 세그먼트 + 임베딩 (recording_segments). FastAPI 가 적재한다."""
+    """녹음 전사 세그먼트 (recording_segments). Whisper 가 끊어 준 그대로다.
+
+    **검색에는 쓰지 않는다.** 평균 21자로 너무 잘게 부서져 있어 임베딩할 의미가 없다
+    (chunking 모듈 주석 참고). 검색은 RecordingChunk 가 맡고, 이쪽은 정밀한 타임스탬프가
+    필요한 요약과 재청킹의 원본으로 남는다.
+    """
 
     __tablename__ = "recording_segments"
 
@@ -74,6 +79,22 @@ class RecordingSegment(Base):
     start_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     end_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     speaker_text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class RecordingChunk(Base):
+    """검색용 전사 덩어리 (recording_chunks). 이웃 세그먼트를 약 300자로 묶은 것."""
+
+    __tablename__ = "recording_chunks"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    recording_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    course_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    start_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
