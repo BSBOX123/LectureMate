@@ -1,6 +1,6 @@
 #!/bin/bash
 # LectureMate 전체 서비스 시작/중지 (A안: 전부 로컬 실행)
-#   scripts/lecturemate.sh start|stop|status
+#   scripts/lecturemate.sh start|stop|restart|status
 # Desktop 의 LectureMate.app 이 이 스크립트를 호출한다.
 
 set -uo pipefail
@@ -124,6 +124,17 @@ start() {
   }
 }
 
+wait_port_free() { # wait_port_free <포트> <최대 초>
+  local port=$1 limit=${2:-20} waited=0
+  while [ "$waited" -lt "$limit" ]; do
+    [ -z "$(port_pid "$port")" ] && return 0
+    sleep 1
+    waited=$((waited + 1))
+  done
+  say "✗ 포트 $port 가 $limit 초 안에 풀리지 않았습니다"
+  return 1
+}
+
 stop() {
   say "LectureMate 중지"
   for port in 3000 8080 8000; do
@@ -132,8 +143,20 @@ stop() {
   done
   # gradlew bootRun 이 남긴 자식 프로세스 정리
   pkill -f "com.lecturemate.LectureMateApplication" 2>/dev/null
+
+  # 종료를 기다린다. Spring Boot 는 graceful shutdown 이라 SIGTERM 후에도 몇 초간 포트를 잡고 있고,
+  # 그 사이에 start 를 하면 "이미 떠 있다" 고 판단해 그 서비스를 건너뛴다 (실제로 겪음).
+  for port in 3000 8080 8000; do
+    wait_port_free "$port" 30
+  done
+
   (cd "$PROJECT_DIR" && docker-compose stop postgres) >/dev/null 2>&1
   say "완료 (Ollama 는 그대로 둡니다: brew services stop ollama)"
+}
+
+restart() {
+  stop
+  start
 }
 
 status() {
@@ -146,6 +169,7 @@ status() {
 case "${1:-start}" in
   start) start ;;
   stop) stop ;;
+  restart) restart ;;
   status) status ;;
-  *) echo "사용법: $0 start|stop|status"; exit 1 ;;
+  *) echo "사용법: $0 start|stop|restart|status"; exit 1 ;;
 esac
