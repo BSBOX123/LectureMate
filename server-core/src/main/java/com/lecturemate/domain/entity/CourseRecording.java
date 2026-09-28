@@ -45,6 +45,13 @@ public class CourseRecording {
   @Column(name = "duration_ms")
   private Integer durationMs;
 
+  /** 전사 전체를 LLM 에 넘겨 만든 복습용 요약. 만들기 전에는 null (SPEC §2.1-11) */
+  @Column(columnDefinition = "text")
+  private String summary;
+
+  @Column(name = "summarized_at")
+  private OffsetDateTime summarizedAt;
+
   @CreationTimestamp
   @Column(name = "created_at", updatable = false)
   private OffsetDateTime createdAt;
@@ -98,6 +105,20 @@ public class CourseRecording {
 
   public Integer getDurationMs() {
     return durationMs;
+  }
+
+  /** 요약을 기록한다. 다시 만들면 덮어쓴다. */
+  public void attachSummary(String summary) {
+    this.summary = summary;
+    this.summarizedAt = OffsetDateTime.now();
+  }
+
+  public String getSummary() {
+    return summary;
+  }
+
+  public OffsetDateTime getSummarizedAt() {
+    return summarizedAt;
   }
 
   public OffsetDateTime getCreatedAt() {

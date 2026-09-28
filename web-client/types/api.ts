@@ -40,6 +40,16 @@ export interface RecordingResponse {
   audioUrl: string | null;
   /** 전사가 끝나면 설정된다 */
   durationMs: number | null;
+  /** 요약이 만들어져 있는지. 본문은 §2.1-12 로 따로 받는다 */
+  hasSummary: boolean;
+}
+
+/** §2.1-12 녹음 요약 */
+export interface RecordingSummaryResponse {
+  recordingId: number;
+  title: string;
+  summary: string;
+  summarizedAt: string;
 }
 
 /** 이전 대화 한 마디. 서버는 대화를 저장하지 않고 클라이언트가 최근 몇 마디를 매번 보낸다. */

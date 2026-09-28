@@ -22,6 +22,7 @@ from core.models import RecordingSegment
 from services.embedding_service import embed_texts
 from services.glossary_service import build_glossary
 from services.spring_webhook import notify_transcription_complete
+from services.summary_service import build_summary
 from services.stt_service import transcribe_file
 
 router = APIRouter(tags=["recordings"])
@@ -62,6 +63,30 @@ async def transcribe(
     )
     log.info("전사 접수 recording_id=%s task_id=%s", recording_id, task_id)
     return TranscribeResponse(task_id=task_id, status="QUEUED")
+
+
+class SummarizeRequest(BaseModel):
+    """요약에 붙일 녹음 이름 (프롬프트에서 "9월 28일 수업 전사" 처럼 쓴다)."""
+
+    title: str = Field(min_length=1, max_length=255)
+
+
+class SummarizeResponse(BaseModel):
+    summary: str | None
+
+
+@router.post("/recordings/{recording_id}/summarize", response_model=SummarizeResponse)
+async def summarize(
+    recording_id: int,
+    request: SummarizeRequest,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> SummarizeResponse:
+    """전사 전체를 읽어 복습용 요약을 만든다 (SPEC §2.2-5).
+
+    동기 호출이다. 실측 35초 정도이고 Spring 의 read-timeout 은 120초다. 결과는 돌려주기만 하고
+    저장은 Spring 이 한다 (`course_recordings` 는 Spring 소유 테이블이다).
+    """
+    return SummarizeResponse(summary=await build_summary(session, recording_id, request.title))
 
 
 async def run_transcription(recording_id: int, course_id: int, audio_path: str) -> None:

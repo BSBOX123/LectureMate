@@ -10,6 +10,7 @@ import CourseChatPanel from "@/components/CourseChatPanel";
 import MaterialList from "@/components/MaterialList";
 import PdfViewer from "@/components/PdfViewer";
 import RecordingList from "@/components/RecordingList";
+import RecordingSummary from "@/components/RecordingSummary";
 
 /**
  * 과목 학습 화면.
@@ -25,6 +26,8 @@ export default function CourseDashboardPage() {
   const [materials, setMaterials] = useState<MaterialResponse[]>([]);
   const [recordings, setRecordings] = useState<RecordingResponse[]>([]);
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
+  // 가운데 영역에 자료(PDF)를 띄울지, 녹음 요약을 띄울지. 요약은 읽는 문서라 PDF 자리를 쓴다
+  const [summaryRecordingId, setSummaryRecordingId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loadedPdf, setLoadedPdf] = useState<{ pdfUrl: string; objectUrl: string } | null>(
     null,
@@ -132,12 +135,19 @@ export default function CourseDashboardPage() {
   const selectMaterial = (materialId: number) => {
     setSelectedMaterialId(materialId);
     setCurrentPage(1);
+    setSummaryRecordingId(null); // 자료를 고르면 PDF 로 돌아온다
   };
 
   const goToCitation = (materialId: number, pageNumber: number) => {
     setSelectedMaterialId(materialId);
     setCurrentPage(pageNumber);
+    setSummaryRecordingId(null);
   };
+
+  const summaryRecording =
+    summaryRecordingId === null
+      ? null
+      : (recordings.find((item) => item.recordingId === summaryRecordingId) ?? null);
 
   return (
     <div className="flex h-screen flex-col">
@@ -165,14 +175,28 @@ export default function CourseDashboardPage() {
             onSelect={selectMaterial}
             onChanged={reload}
           />
-          <RecordingList courseId={courseId} recordings={recordings} onChanged={reload} />
+          <RecordingList
+            courseId={courseId}
+            recordings={recordings}
+            selectedId={summaryRecordingId}
+            onShowSummary={setSummaryRecordingId}
+            onChanged={reload}
+          />
         </aside>
-        <PdfViewer
-          pdfUrl={pdfObjectUrl}
-          pageNumber={currentPage}
-          onPageChange={setCurrentPage}
-          onDocumentLoaded={handleDocumentLoaded}
-        />
+        {summaryRecording ? (
+          <RecordingSummary
+            courseId={courseId}
+            recording={summaryRecording}
+            onCreated={reload}
+          />
+        ) : (
+          <PdfViewer
+            pdfUrl={pdfObjectUrl}
+            pageNumber={currentPage}
+            onPageChange={setCurrentPage}
+            onDocumentLoaded={handleDocumentLoaded}
+          />
+        )}
         <CourseChatPanel courseId={courseId} onCitationClick={goToCitation} />
       </main>
     </div>

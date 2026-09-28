@@ -108,9 +108,25 @@ courses (과목)
     * `status` 가 `UPLOADED`(녹음 저장 완료) 또는 `FAILED`(재시도) 일 때만 허용 (아니면 409)
     * 실패한 녹음의 재시도도 같은 경로를 쓴다
 
+### 녹음 요약
+
+11. **녹음 요약 만들기 / 조회**
+    * `POST /api/v1/courses/{courseId}/recordings/{recordingId}/summary` → 200 OK
+      ```json
+      { "recordingId": 21, "title": "9월 28일 수업",
+        "summary": "교수님이 특히 강조한 부분 ... GROUP BY 를 \"이제 중요한 것\"이라고 짚었습니다 [42:08] ...",
+        "summarizedAt": "2026-09-28T12:30:00+09:00" }
+      ```
+    * `GET` 같은 경로 → 만들어 둔 요약 조회. 없으면 404
+    * `status=READY`(전사 완료) 일 때만 허용 (아니면 409). 이미 있으면 덮어쓴다
+    * **채팅(§2.1-12)으로는 답할 수 없는 질문을 위한 것이다.** "교수님이 강조한 부분" 은 강조가
+      주제가 아니어서 임베딩이 매칭할 대상이 없고, top_k 개만 가져오면 한 시간짜리 수업을 요약할
+      수 없다. 검색 질문이 아니라 집계 질문이므로 전사 전체를 한 번에 LLM 에 넘긴다
+    * 실측 39초 걸린다 (동기 호출, 71분 녹음 = 24,924자 ≈ 8천 토큰, LLM 1회)
+
 ### 질의응답
 
-11. **과목 단위 RAG Q&A (SSE 스트리밍)**
+12. **과목 단위 RAG Q&A (SSE 스트리밍)**
     * `POST /api/v1/courses/{courseId}/chat`
     * Request:
       ```jsonc
@@ -135,26 +151,26 @@ courses (과목)
 
 ### 인증
 
-12. **회원가입**
+13. **회원가입**
     * `POST /api/v1/auth/signup`
     * Request: `{ "email": "student@example.com", "password": "...", "name": "김학생" }`
     * 제약: email 형식/중복 불가, password 8자 이상, name 1~100자
     * Response (201 Created): `{ "userId": 1, "email": "student@example.com", "name": "김학생" }`
     * 오류: 409 Conflict (이메일 중복), 400 Bad Request (형식 오류)
-13. **로그인**
+14. **로그인**
     * `POST /api/v1/auth/login`
     * Request: `{ "email": "student@example.com", "password": "..." }`
     * Response (200 OK): `{ "accessToken": "eyJ...", "tokenType": "Bearer", "expiresIn": 1800 }`
     * Refresh Token은 응답 본문이 아니라 httpOnly 쿠키(`refreshToken`, Path=/api/v1/auth, SameSite=Lax, 운영 환경 Secure)로 내려간다
     * 오류: 401 Unauthorized (이메일 또는 비밀번호 불일치)
-14. **Access Token 재발급**
+15. **Access Token 재발급**
     * `POST /api/v1/auth/refresh`
     * Request: 본문 없음. `refreshToken` 쿠키 사용
     * Response (200 OK): 로그인과 동일 형식. Refresh Token은 회전(rotation)되어 새 쿠키로 교체된다
     * 오류: 401 Unauthorized (쿠키 없음/만료/이미 폐기됨)
-15. **로그아웃**
+16. **로그아웃**
     * `POST /api/v1/auth/logout` → 204 No Content. Refresh Token을 폐기하고 쿠키를 만료시킨다
-16. **내 정보 조회**
+17. **내 정보 조회**
     * `GET /api/v1/users/me`
     * Request Header: `Authorization: Bearer {accessToken}`
     * Response (200 OK): `{ "userId": 1, "email": "student@example.com", "name": "김학생" }`
@@ -194,9 +210,16 @@ courses (과목)
 3. **과목 단위 RAG 검색 및 응답 생성**
    * `POST /ai/v1/rag/query`
    * Request: `{ "course_id": 17, "question": "...", "top_k": 5, "history": [ ... ] }` (`top_k` 생략 시 5, `history` 는 §2.1-11 과 같은 형식)
-   * Response: `text/event-stream`. §2.1-11 과 동일한 citations / token / done 이벤트
+   * Response: `text/event-stream`. §2.1-12 와 동일한 citations / token / done 이벤트
    * 검색은 pgvector 코사인 거리로 `material_pages` 와 `recording_segments` 를 **과목 전체 범위에서** 각각 조회해 합친다 (하이브리드 컨텍스트). 출처 이름을 붙이기 위해 `course_materials` / `course_recordings` 와 조인한다
    * **후속 질문 처리:** "그거 시험에 나와?" 는 그 자체로 검색어가 되지 못한다. `history` 가 있으면 **직전 사용자 질문을 앞에 붙여** 임베딩한다. LLM 으로 질문을 재작성하면 더 정확하겠지만 호출이 한 번 늘어 답변이 느려지므로, 빠른 응답을 우선해 이 방식을 쓴다
+5. **녹음 요약 (Spring Boot -> FastAPI)**
+   * `POST /ai/v1/recordings/{recording_id}/summarize`
+   * Request: `{ "title": "9월 28일 수업" }` (프롬프트에서 녹음 이름으로 쓴다)
+   * Response: `{ "summary": "..." }` — 전사가 없으면 `summary` 가 `null`
+   * 검색하지 않고 `recording_segments` 전체를 시각과 함께 LLM 에 넘긴다. 결과 저장은 Spring 이 한다
+     (`course_recordings` 는 Spring 소유 테이블)
+
 4. **전사 완료 통보 Webhook (FastAPI -> Spring Boot)**
    * `POST /internal/v1/recordings/{recording_id}/transcription-complete`
    * Request:
@@ -359,6 +382,7 @@ CREATE INDEX idx_segments_vector ON recording_segments USING hnsw (embedding vec
   * `RecordingList.tsx`: 녹음 목록·상태 표시·삭제. `UPLOADED` 상태에는 "전사 시작" 버튼을 주요 동작으로 노출한다
   * `PdfViewer.tsx`: PDF.js 기반 슬라이드 렌더러
   * `AudioRecorder.tsx`: Web Audio API 기반 녹음 컨트롤러 (녹음 생성 후 WebSocket 연결)
+  * `RecordingSummary.tsx`: 녹음 요약 보기·만들기. PDF 자리(가운데)에 띄운다 — 읽는 문서이기 때문
   * `CourseChatPanel.tsx`: SSE 기반 RAG 어시스턴트 대화창. 자료 근거 뱃지를 누르면 그 자료의 해당 쪽으로 이동한다. 최근 4마디를 `history` 로 보내 후속 질문의 맥락을 유지한다
   * `AuthProvider.tsx`: 세션 복구 및 로그인 상태 공유
 

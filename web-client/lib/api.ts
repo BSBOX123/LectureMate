@@ -5,6 +5,7 @@ import type {
   CourseResponse,
   MaterialResponse,
   RecordingResponse,
+  RecordingSummaryResponse,
 } from "@/types/api";
 import type {
   LoginRequest,
@@ -259,6 +260,22 @@ export const recordingApi = {
   /** §2.1-9 녹음 삭제 (오디오·전사 포함) */
   remove: (courseId: number, recordingId: number) =>
     request<void>(`/api/v1/courses/${courseId}/recordings/${recordingId}`, { method: "DELETE" }),
+
+  /**
+   * §2.1-12 요약 만들기. 전사 전체를 LLM 에 한 번 넘기므로 35초쯤 걸린다 (화면에 대기 표시 필요).
+   * 이미 있으면 덮어쓴다.
+   */
+  createSummary: (courseId: number, recordingId: number) =>
+    request<RecordingSummaryResponse>(
+      `/api/v1/courses/${courseId}/recordings/${recordingId}/summary`,
+      { method: "POST" },
+    ),
+
+  /** §2.1-12 만들어 둔 요약 조회. 없으면 404 */
+  summary: (courseId: number, recordingId: number) =>
+    request<RecordingSummaryResponse>(
+      `/api/v1/courses/${courseId}/recordings/${recordingId}/summary`,
+    ),
 
   /** §2.1-10 전사 시작 (실패한 녹음의 재시도도 같은 경로). 자동으로 시작되지 않는다 */
   transcribe: (courseId: number, recordingId: number) =>

@@ -7,6 +7,10 @@ import type { RecordingResponse } from "@/types/api";
 interface RecordingListProps {
   courseId: number;
   recordings: RecordingResponse[];
+  /** 요약을 보고 있는 녹음 (없으면 null) */
+  selectedId: number | null;
+  /** 전사가 끝난 녹음을 눌러 요약을 열 때 */
+  onShowSummary: (recordingId: number) => void;
   onChanged: () => void;
 }
 
@@ -31,7 +35,10 @@ function statusLabel(recording: RecordingResponse): string {
       // 실측 음성 1분당 약 34초. 멈춘 것처럼 보이지 않게 예상 시간을 알려 준다
       return "글로 옮기는 중 (음성 1분당 약 34초)";
     case "READY":
-      return durationLabel(recording.durationMs) ?? "완료";
+      // 요약을 볼 수 있다는 것을 알려 준다
+      return `${durationLabel(recording.durationMs) ?? "완료"} · ${
+        recording.hasSummary ? "요약 있음" : "요약 만들기"
+      }`;
     case "FAILED":
       return "실패";
   }
@@ -41,6 +48,8 @@ function statusLabel(recording: RecordingResponse): string {
 export default function RecordingList({
   courseId,
   recordings,
+  selectedId,
+  onShowSummary,
   onChanged,
 }: RecordingListProps) {
   const [error, setError] = useState<string | null>(null);
@@ -78,18 +87,34 @@ export default function RecordingList({
         )}
         {recordings.map((recording) => (
           <li key={recording.recordingId} className="group flex items-start gap-1">
-            <div className="min-w-0 flex-1 px-2 py-1">
+            {/* 전사가 끝난 녹음은 눌러서 요약을 본다 */}
+            <button
+              type="button"
+              className={`min-w-0 flex-1 rounded px-2 py-1 text-left ${
+                recording.recordingId === selectedId
+                  ? "bg-zinc-900 text-white"
+                  : recording.status === "READY"
+                    ? "hover:bg-zinc-100"
+                    : "cursor-default"
+              }`}
+              disabled={recording.status !== "READY"}
+              onClick={() => onShowSummary(recording.recordingId)}
+            >
               <p className="truncate text-xs" title={recording.title}>
                 {recording.title}
               </p>
               <p
                 className={`text-[11px] ${
-                  recording.status === "FAILED" ? "text-red-600" : "text-zinc-400"
+                  recording.recordingId === selectedId
+                    ? "text-zinc-300"
+                    : recording.status === "FAILED"
+                      ? "text-red-600"
+                      : "text-zinc-400"
                 }`}
               >
                 {statusLabel(recording)}
               </p>
-            </div>
+            </button>
             {(recording.status === "UPLOADED" || recording.status === "FAILED") && (
               <button
                 type="button"

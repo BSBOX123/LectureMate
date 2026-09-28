@@ -1,6 +1,7 @@
 package com.lecturemate.api.controller;
 
 import com.lecturemate.api.dto.RecordingResponse;
+import com.lecturemate.api.dto.RecordingSummaryResponse;
 import com.lecturemate.service.RecordingService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -69,6 +70,29 @@ public class RecordingController {
       @PathVariable Long courseId,
       @PathVariable Long recordingId) {
     return recordingService.transcribe(userId(jwt), courseId, recordingId);
+  }
+
+  /**
+   * 녹음 요약 만들기 (SPEC §2.1-12).
+   *
+   * <p>전사 전체를 LLM 에 한 번 넘긴다. 실측 35초 정도 걸리므로 화면에서 기다리는 표시가 필요하다.
+   * 이미 있으면 덮어쓴다.
+   */
+  @PostMapping("/{recordingId}/summary")
+  public RecordingSummaryResponse createSummary(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable Long courseId,
+      @PathVariable Long recordingId) {
+    return recordingService.summarize(userId(jwt), courseId, recordingId);
+  }
+
+  /** 만들어 둔 요약 조회 (SPEC §2.1-12). 없으면 404. */
+  @GetMapping("/{recordingId}/summary")
+  public RecordingSummaryResponse summary(
+      @AuthenticationPrincipal Jwt jwt,
+      @PathVariable Long courseId,
+      @PathVariable Long recordingId) {
+    return recordingService.findSummary(userId(jwt), courseId, recordingId);
   }
 
   private static Long userId(Jwt jwt) {

@@ -1,6 +1,9 @@
 package com.lecturemate.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -201,5 +204,75 @@ class RecordingFlowTest {
             post("/api/v1/courses/{courseId}/recordings/{id}/transcribe", courseId, recording.getId())
                 .header("Authorization", "Bearer " + ownerToken))
         .andExpect(status().isAccepted());
+  }
+
+  /** 전사가 끝난 녹음만 요약할 수 있다 (SPEC §2.1-12). */
+  @Test
+  void summaryRequiresFinishedTranscription() throws Exception {
+    CourseRecording recording = recordingRepository.save(new CourseRecording(course, "전사 전"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/courses/{courseId}/recordings/{id}/summary", courseId, recording.getId())
+                .header("Authorization", "Bearer " + ownerToken))
+        .andExpect(status().isConflict());
+
+    // 아직 요약이 없으면 조회는 404
+    mockMvc
+        .perform(
+            get("/api/v1/courses/{courseId}/recordings/{id}/summary", courseId, recording.getId())
+                .header("Authorization", "Bearer " + ownerToken))
+        .andExpect(status().isNotFound());
+  }
+
+  /** 전사 전체를 LLM 에 넘겨 만든 요약을 저장하고 돌려준다. */
+  @Test
+  void createsAndReadsSummary() throws Exception {
+    CourseRecording recording = recordingRepository.save(new CourseRecording(course, "9월 28일 수업"));
+    recording.markReady(4_300_000);
+    recordingRepository.save(recording);
+
+    given(fastApiClient.summarize(eq(recording.getId()), eq("9월 28일 수업")))
+        .willReturn(new FastApiClient.SummarizeResponse("날짜 함수는 DBMS 마다 다르다고 강조했다 [6:43]"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/courses/{courseId}/recordings/{id}/summary", courseId, recording.getId())
+                .header("Authorization", "Bearer " + ownerToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.summary").value("날짜 함수는 DBMS 마다 다르다고 강조했다 [6:43]"))
+        .andExpect(jsonPath("$.summarizedAt").isNotEmpty());
+
+    // 저장돼 있으므로 다시 만들지 않고 읽을 수 있다
+    mockMvc
+        .perform(
+            get("/api/v1/courses/{courseId}/recordings/{id}/summary", courseId, recording.getId())
+                .header("Authorization", "Bearer " + ownerToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.summary").value("날짜 함수는 DBMS 마다 다르다고 강조했다 [6:43]"));
+
+    // 목록에는 요약 유무만 실린다 (본문은 목록을 무겁게 하지 않는다)
+    mockMvc
+        .perform(
+            get("/api/v1/courses/{courseId}/recordings", courseId)
+                .header("Authorization", "Bearer " + ownerToken))
+        .andExpect(jsonPath("$[0].hasSummary").value(true));
+  }
+
+  /** 전사 내용이 없으면 409 (FastAPI 가 null 을 준다). */
+  @Test
+  void summaryWithoutTranscriptReturnsConflict() throws Exception {
+    CourseRecording recording = recordingRepository.save(new CourseRecording(course, "빈 녹음"));
+    recording.markReady(1000);
+    recordingRepository.save(recording);
+
+    given(fastApiClient.summarize(any(), any()))
+        .willReturn(new FastApiClient.SummarizeResponse(null));
+
+    mockMvc
+        .perform(
+            post("/api/v1/courses/{courseId}/recordings/{id}/summary", courseId, recording.getId())
+                .header("Authorization", "Bearer " + ownerToken))
+        .andExpect(status().isConflict());
   }
 }

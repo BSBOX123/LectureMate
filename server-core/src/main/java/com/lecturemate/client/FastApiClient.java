@@ -60,6 +60,20 @@ public class FastApiClient {
         .body(TranscribeResponse.class);
   }
 
+  /** SPEC §2.2-5 요청/응답 (녹음 요약). 동기 호출이며 실측 35초 정도다. */
+  public record SummarizeRequest(String title) {}
+
+  public record SummarizeResponse(String summary) {}
+
+  public SummarizeResponse summarize(Long recordingId, String title) {
+    return restClient
+        .post()
+        .uri("/ai/v1/recordings/{recordingId}/summarize", recordingId)
+        .body(new SummarizeRequest(title))
+        .retrieve()
+        .body(SummarizeResponse.class);
+  }
+
   /** SPEC §2.2-3 요청. */
   public record RagQueryRequest(
       Long course_id, String question, Integer top_k, java.util.List<ChatTurn> history) {}
