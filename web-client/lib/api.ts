@@ -39,8 +39,8 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
+function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(`${BASE_URL}${path}`, {
     ...init,
     // Refresh Token 쿠키를 주고받기 위해 필요
     credentials: "include",
@@ -52,6 +52,39 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
   });
+}
+
+/**
+ * Access Token 은 30분이면 만료된다. 한 시간 넘는 수업을 녹음하고 종료를 누르면 그 뒤의 모든
+ * 요청이 401 로 실패했다 (실제로 72분 녹음에서 겪음). 401 을 만나면 Refresh Token 쿠키로
+ * 한 번 재발급하고 같은 요청을 다시 보낸다.
+ *
+ * 동시에 여러 요청이 401 을 만나도 재발급은 한 번만 하도록 진행 중인 약속을 공유한다.
+ */
+let refreshing: Promise<void> | null = null;
+
+async function refreshOnce(): Promise<void> {
+  refreshing ??= authApi
+    .refresh()
+    .then(() => undefined)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let response = await authedFetch(path, init);
+
+  // 인증 API 자체는 재시도하지 않는다 (무한 루프가 된다)
+  if (response.status === 401 && !path.startsWith("/api/v1/auth/")) {
+    try {
+      await refreshOnce();
+      response = await authedFetch(path, init);
+    } catch {
+      // 재발급도 실패하면 원래의 401 을 그대로 올린다 (로그인 화면으로 보내야 한다)
+    }
+  }
 
   if (!response.ok) {
     throw new ApiError(response.status, await errorMessage(response));
@@ -145,16 +178,19 @@ export const courseApi = {
     },
     signal?: AbortSignal,
   ) => {
-    const response = await fetch(`${BASE_URL}/api/v1/courses/${courseId}/chat`, {
-      method: "POST",
-      credentials: "include",
-      signal,
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ question, history }),
-    });
+    const send = () =>
+      authedFetch(`/api/v1/courses/${courseId}/chat`, {
+        method: "POST",
+        signal,
+        body: JSON.stringify({ question, history }),
+      });
+
+    let response = await send();
+    // 긴 수업 뒤에는 토큰이 만료돼 있다 (request() 와 같은 처리)
+    if (response.status === 401) {
+      await refreshOnce();
+      response = await send();
+    }
     if (!response.ok || !response.body) {
       throw new ApiError(response.status, "답변을 받지 못했습니다.");
     }
@@ -233,10 +269,11 @@ export const recordingApi = {
 
 /** 인증이 필요한 파일(PDF)을 fetch 로 받아 blob URL 로 바꾼다. */
 export async function fileObjectUrl(fileUrl: string): Promise<string> {
-  const response = await fetch(`${BASE_URL}${fileUrl}`, {
-    credentials: "include",
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  });
+  let response = await authedFetch(fileUrl);
+  if (response.status === 401) {
+    await refreshOnce();
+    response = await authedFetch(fileUrl);
+  }
   if (!response.ok) {
     throw new ApiError(response.status, "파일을 불러오지 못했습니다.");
   }

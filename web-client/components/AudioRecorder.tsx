@@ -64,12 +64,14 @@ export default function AudioRecorder({
     setError(null);
     setStatus(null);
     try {
+      // 녹음할 자리를 먼저 만들어야 WebSocket 을 열 수 있다 (SPEC §2.1-7).
+      // 이 호출이 401 이면 api 계층이 토큰을 재발급하므로, 토큰은 **이 뒤에** 읽어야 한다.
+      // (먼저 읽으면 만료된 토큰으로 WebSocket 을 열어 1008 로 끊긴다)
+      const recording = await recordingApi.create(courseId, defaultTitle());
       const token = getAccessToken();
       if (!token) {
         throw new Error("로그인이 필요합니다.");
       }
-      // 녹음할 자리를 먼저 만들어야 WebSocket 을 열 수 있다 (SPEC §2.1-7)
-      const recording = await recordingApi.create(courseId, defaultTitle());
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
