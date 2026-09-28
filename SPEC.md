@@ -97,13 +97,16 @@ courses (과목)
    * Client -> Spring Boot: Binary Audio Chunks — **16kHz 모노 16bit LE PCM**, 3~5초 단위
    * 수신한 PCM 은 서버가 누적해 연결 종료 시 `{STORAGE_LOCAL_PATH}/audio/{recordingId}.wav` 로 저장하고 `course_recordings.audio_url` 을 기록한다
    * **녹음 중에는 어떤 모델도 돌리지 않는다.** 서버 → 클라이언트 메시지는 없다
-   * 연결이 끝나면 WAV 를 만든 **직후 전사를 자동으로 시작**한다 (사용자가 버튼을 누르지 않는다)
+   * 연결이 끝나면 WAV 를 만들고 `status=UPLOADED` 로 둔다. **전사는 자동으로 시작하지 않는다**
+     (§2.1-10 으로 사용자가 시작). 전사는 음성 1분당 약 34초가 걸려(75분 수업이면 42분) 수업
+     직후 바로 노트북을 덮고 다음 강의실로 이동하는 상황에서는 끝까지 돌 수 없다
 9. **녹음 목록 / 삭제**
    * `GET /api/v1/courses/{courseId}/recordings` → §2.1-7 형식의 배열 (최신순)
    * `DELETE /api/v1/courses/{courseId}/recordings/{recordingId}` → 204 No Content (WAV 파일까지 삭제)
-10. **전사 재시도**
-    * `POST /api/v1/courses/{courseId}/recordings/{recordingId}/retry` → 202 Accepted, §2.1-7 과 동일한 응답
-    * `status` 가 `FAILED` 또는 `UPLOADED` 일 때만 허용 (아니면 409)
+10. **전사 시작**
+    * `POST /api/v1/courses/{courseId}/recordings/{recordingId}/transcribe` → 202 Accepted, §2.1-7 과 동일한 응답
+    * `status` 가 `UPLOADED`(녹음 저장 완료) 또는 `FAILED`(재시도) 일 때만 허용 (아니면 409)
+    * 실패한 녹음의 재시도도 같은 경로를 쓴다
 
 ### 질의응답
 
@@ -162,8 +165,8 @@ courses (과목)
   * `PROCESSING` (업로드 완료, FastAPI 파싱 요청) → `READY` (페이지·임베딩 적재 완료, 검색 가능)
   * 실패 시 `FAILED` → §2.1-6 으로 재시도
 * **녹음 (`course_recordings.status`)**
-  * `CREATED` (행 생성) → `RECORDING` (WebSocket 연결) → `UPLOADED` (WAV 저장 완료)
-    → `ANALYZING` (전사 중) → `READY` (§2.2-4 Webhook 수신, 검색 가능)
+  * `CREATED` (행 생성) → `RECORDING` (WebSocket 연결) → `UPLOADED` (WAV 저장 완료, **전사 대기**)
+    → `ANALYZING` (§2.1-10 으로 사용자가 시작) → `READY` (§2.2-4 Webhook 수신, 검색 가능)
   * 실패 시 `FAILED` → §2.1-10 으로 재시도
 
 ### 인증 규칙
@@ -353,7 +356,7 @@ CREATE INDEX idx_segments_vector ON recording_segments USING hnsw (embedding vec
 * `app/courses/[id]/page.tsx`: 과목 학습 화면 (왼쪽 자료·녹음 목록, 가운데 PDF, 오른쪽 질의응답)
 * **`components/`**
   * `MaterialList.tsx`: 자료 목록·업로드·삭제·재시도
-  * `RecordingList.tsx`: 녹음 목록·상태 표시·삭제·재시도
+  * `RecordingList.tsx`: 녹음 목록·상태 표시·삭제. `UPLOADED` 상태에는 "전사 시작" 버튼을 주요 동작으로 노출한다
   * `PdfViewer.tsx`: PDF.js 기반 슬라이드 렌더러
   * `AudioRecorder.tsx`: Web Audio API 기반 녹음 컨트롤러 (녹음 생성 후 WebSocket 연결)
   * `CourseChatPanel.tsx`: SSE 기반 RAG 어시스턴트 대화창. 자료 근거 뱃지를 누르면 그 자료의 해당 쪽으로 이동한다. 최근 4마디를 `history` 로 보내 후속 질문의 맥락을 유지한다

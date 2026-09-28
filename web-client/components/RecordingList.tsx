@@ -25,10 +25,11 @@ function statusLabel(recording: RecordingResponse): string {
     case "RECORDING":
       return "녹음 중";
     case "UPLOADED":
-      return "전사 대기";
+      // 전사는 자동으로 시작하지 않는다. 눌러야 한다는 것을 문구로 알려 준다
+      return "전사하면 질문할 수 있어요";
     case "ANALYZING":
-      // 실측 36분 강의에 약 15분. 멈춘 것처럼 보이지 않게 미리 알려 준다
-      return "글로 옮기는 중 (36분 강의 기준 약 15분)";
+      // 실측 음성 1분당 약 34초. 멈춘 것처럼 보이지 않게 예상 시간을 알려 준다
+      return "글로 옮기는 중 (음성 1분당 약 34초)";
     case "READY":
       return durationLabel(recording.durationMs) ?? "완료";
     case "FAILED":
@@ -56,12 +57,13 @@ export default function RecordingList({
       );
   };
 
-  const retry = (recording: RecordingResponse) => {
+  const transcribe = (recording: RecordingResponse) => {
+    setError(null);
     void recordingApi
-      .retry(courseId, recording.recordingId)
+      .transcribe(courseId, recording.recordingId)
       .then(onChanged)
       .catch((cause: unknown) =>
-        setError(cause instanceof Error ? cause.message : "다시 시도하지 못했습니다."),
+        setError(cause instanceof Error ? cause.message : "전사를 시작하지 못했습니다."),
       );
   };
 
@@ -88,13 +90,18 @@ export default function RecordingList({
                 {statusLabel(recording)}
               </p>
             </div>
-            {(recording.status === "FAILED" || recording.status === "UPLOADED") && (
+            {(recording.status === "UPLOADED" || recording.status === "FAILED") && (
               <button
                 type="button"
-                className="pt-1 text-xs text-blue-600"
-                onClick={() => retry(recording)}
+                // 전사는 사용자가 눌러야 시작되므로 주요 동작으로 보이게 한다
+                className={`mt-1 shrink-0 rounded px-2 py-1 text-xs ${
+                  recording.status === "UPLOADED"
+                    ? "bg-amber-600 font-medium text-white"
+                    : "border border-red-300 text-red-700"
+                }`}
+                onClick={() => transcribe(recording)}
               >
-                {recording.status === "FAILED" ? "재시도" : "전사"}
+                {recording.status === "UPLOADED" ? "전사 시작" : "다시 시도"}
               </button>
             )}
             <button

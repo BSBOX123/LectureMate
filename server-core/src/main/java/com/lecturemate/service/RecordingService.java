@@ -18,10 +18,11 @@ import org.springframework.web.server.ResponseStatusException;
  * 과목 안에서 여러 번 녹음하고 전사한다 (SPEC §2.1-7 ~ §2.1-11).
  *
  * <p>흐름: 녹음 생성(CREATED) → WebSocket 으로 PCM 수신(RECORDING) → 연결 종료 시 WAV 저장(UPLOADED)
- * → 전사 요청(ANALYZING) → Webhook 수신(READY / FAILED).
+ * → **사용자가 전사 시작**(ANALYZING) → Webhook 수신(READY / FAILED).
  *
- * <p>녹음이 끝나면 전사를 자동으로 시작한다. 예전에는 사용자가 버튼을 눌러야 했는데, 무엇을 눌러야 분석이
- * 되는지 알기 어렵다는 문제가 실제 사용에서 드러났다.
+ * <p>전사는 자동으로 시작하지 않는다. 실측으로 음성 1분당 약 34초가 걸려(75분 수업이면 42분) 수업이
+ * 끝나고 바로 노트북을 덮고 다음 강의실로 이동하는 상황에서는 끝까지 돌 수 없다. 대신 녹음 목록에
+ * 상태와 "전사 시작" 버튼을 두어, 시간이 있을 때 직접 누르게 한다.
  */
 @Service
 public class RecordingService {
@@ -77,29 +78,27 @@ public class RecordingService {
   }
 
   /**
-   * 녹음 종료: WAV 를 기록하고 곧바로 전사를 요청한다 (SPEC §2.1-8).
+   * 녹음 종료: WAV 를 기록하고 전사 대기 상태로 둔다 (SPEC §2.1-8).
    *
-   * <p>WAV 는 호출 전에 이미 만들어져 있다. 파일이 준비되기 전에 FastAPI 가 읽는 문제는 생기지 않는다.
+   * <p>전사는 여기서 시작하지 않는다. 사용자가 시간이 있을 때 §2.1-10 으로 직접 시작한다.
    */
   @Transactional
   public void finishRecording(Long recordingId, String audioUrl) {
-    recordingRepository
-        .findById(recordingId)
-        .ifPresent(
-            recording -> {
-              recording.attachAudio(audioUrl);
-              startTranscription(recording);
-            });
+    recordingRepository.findById(recordingId).ifPresent(r -> r.attachAudio(audioUrl));
   }
 
-  /** 전사 실패 후 다시 시도한다 (SPEC §2.1-10). */
+  /**
+   * 전사를 시작한다 (SPEC §2.1-10). 실패한 녹음을 다시 시도할 때도 같은 경로를 쓴다.
+   *
+   * <p>WAV 는 녹음 종료 시 이미 만들어져 있다. 파일이 준비되기 전에 FastAPI 가 읽는 문제는 없다.
+   */
   @Transactional
-  public RecordingResponse retry(Long userId, Long courseId, Long recordingId) {
+  public RecordingResponse transcribe(Long userId, Long courseId, Long recordingId) {
     CourseRecording recording = requireOwned(userId, courseId, recordingId);
-    if (recording.getStatus() != RecordingStatus.FAILED
-        && recording.getStatus() != RecordingStatus.UPLOADED) {
+    if (recording.getStatus() != RecordingStatus.UPLOADED
+        && recording.getStatus() != RecordingStatus.FAILED) {
       throw new ResponseStatusException(
-          HttpStatus.CONFLICT, "전사를 기다리거나 실패한 녹음만 다시 시도할 수 있습니다.");
+          HttpStatus.CONFLICT, "녹음이 저장된 뒤에만 전사할 수 있습니다.");
     }
     startTranscription(recording);
     return RecordingResponse.from(recording);

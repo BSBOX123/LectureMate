@@ -260,9 +260,9 @@ export const recordingApi = {
   remove: (courseId: number, recordingId: number) =>
     request<void>(`/api/v1/courses/${courseId}/recordings/${recordingId}`, { method: "DELETE" }),
 
-  /** §2.1-10 전사 재시도. 녹음이 끝나면 전사는 자동으로 시작된다 */
-  retry: (courseId: number, recordingId: number) =>
-    request<RecordingResponse>(`/api/v1/courses/${courseId}/recordings/${recordingId}/retry`, {
+  /** §2.1-10 전사 시작 (실패한 녹음의 재시도도 같은 경로). 자동으로 시작되지 않는다 */
+  transcribe: (courseId: number, recordingId: number) =>
+    request<RecordingResponse>(`/api/v1/courses/${courseId}/recordings/${recordingId}/transcribe`, {
       method: "POST",
     }),
 };

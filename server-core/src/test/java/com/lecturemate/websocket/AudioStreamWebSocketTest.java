@@ -114,9 +114,14 @@ class AudioStreamWebSocketTest {
     assertClosed(connect(999_999L, "?token=" + ownerToken));
   }
 
-  /** 녹음이 끝나면 WAV 가 만들어지고 전사가 자동으로 시작된다. */
+  /**
+   * 녹음이 끝나면 WAV 가 만들어지고 전사 대기 상태가 된다.
+   *
+   * <p>전사를 자동으로 시작하지 않는 것이 핵심이다. 음성 1분당 약 34초가 걸려, 수업 직후 바로
+   * 노트북을 덮고 이동하는 상황에서는 끝까지 돌 수 없다 (실사용에서 확인).
+   */
   @Test
-  void savesWavAndStartsTranscriptionOnClose() throws Exception {
+  void savesWavAndWaitsForUserToStartTranscription() throws Exception {
     WebSocketSession session = connect(recordingId, "?token=" + ownerToken);
 
     session.sendMessage(new BinaryMessage(new byte[3200]));
@@ -137,14 +142,15 @@ class AudioStreamWebSocketTest {
               CourseRecording recording = recordingRepository.findById(recordingId).orElseThrow();
               assertThat(recording.getAudioUrl())
                   .isEqualTo("/files/audio/" + recordingId + ".wav");
-              // 사용자가 따로 버튼을 누르지 않아도 전사가 시작된다
-              assertThat(recording.getStatus()).isEqualTo(RecordingStatus.ANALYZING);
+              // 전사 대기. 사용자가 버튼을 눌러야 시작된다
+              assertThat(recording.getStatus()).isEqualTo(RecordingStatus.UPLOADED);
             });
 
     // 44바이트 WAV 헤더 + 보낸 PCM
     Path wav = storageDir.resolve("audio").resolve(recordingId + ".wav");
     assertThat(java.nio.file.Files.size(wav)).isEqualTo(44 + 3200);
-    org.mockito.Mockito.verify(fastApiClient)
-        .transcribe(org.mockito.ArgumentMatchers.eq(recordingId), any(), any());
+    // 전사를 요청하지 않는다
+    org.mockito.Mockito.verify(fastApiClient, org.mockito.Mockito.never())
+        .transcribe(any(), any(), any());
   }
 }

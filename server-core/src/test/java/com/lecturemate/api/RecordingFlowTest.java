@@ -175,14 +175,31 @@ class RecordingFlowTest {
   }
 
   @Test
-  void retryRejectsRecordingWithoutAudio() throws Exception {
+  void transcribeRejectsRecordingWithoutAudio() throws Exception {
     Long recordingId = createRecording("오디오 없음", ownerToken);
 
-    // CREATED 상태(녹음 전)에서는 다시 시도할 것이 없다
+    // CREATED 상태(녹음 전)에는 전사할 오디오가 없다
     mockMvc
         .perform(
-            post("/api/v1/courses/{courseId}/recordings/{id}/retry", courseId, recordingId)
+            post("/api/v1/courses/{courseId}/recordings/{id}/transcribe", courseId, recordingId)
                 .header("Authorization", "Bearer " + ownerToken))
         .andExpect(status().isConflict());
+  }
+
+  /** 녹음이 저장된 뒤 사용자가 눌러야 전사가 시작된다 (SPEC §2.1-10). */
+  @Test
+  void transcribeStartsFromUploadedState() throws Exception {
+    CourseRecording recording = recordingRepository.save(new CourseRecording(course, "전사 대상"));
+    recording.attachAudio("/files/audio/" + recording.getId() + ".wav");
+    recordingRepository.save(recording);
+    assertThat(recordingRepository.findById(recording.getId()).orElseThrow().getStatus())
+        .isEqualTo(RecordingStatus.UPLOADED);
+
+    // 오디오 파일이 없으면 FAILED 로 떨어진다 (실제 파일은 이 테스트에서 만들지 않는다)
+    mockMvc
+        .perform(
+            post("/api/v1/courses/{courseId}/recordings/{id}/transcribe", courseId, recording.getId())
+                .header("Authorization", "Bearer " + ownerToken))
+        .andExpect(status().isAccepted());
   }
 }

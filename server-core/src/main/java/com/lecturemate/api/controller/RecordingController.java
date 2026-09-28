@@ -56,14 +56,19 @@ public class RecordingController {
     recordingService.delete(userId(jwt), courseId, recordingId);
   }
 
-  /** 전사 재시도 (SPEC §2.1-10). 녹음이 끝나면 전사는 자동으로 시작된다. */
-  @PostMapping("/{recordingId}/retry")
+  /**
+   * 전사 시작 (SPEC §2.1-10). 실패한 녹음의 재시도도 같은 경로다.
+   *
+   * <p>녹음 종료 시 자동으로 시작하지 않는다. 전사는 음성 1분당 약 34초가 걸려 수업 직후 바로
+   * 노트북을 덮는 상황에서는 끝까지 돌 수 없기 때문이다.
+   */
+  @PostMapping("/{recordingId}/transcribe")
   @ResponseStatus(HttpStatus.ACCEPTED)
-  public RecordingResponse retry(
+  public RecordingResponse transcribe(
       @AuthenticationPrincipal Jwt jwt,
       @PathVariable Long courseId,
       @PathVariable Long recordingId) {
-    return recordingService.retry(userId(jwt), courseId, recordingId);
+    return recordingService.transcribe(userId(jwt), courseId, recordingId);
   }
 
   private static Long userId(Jwt jwt) {
