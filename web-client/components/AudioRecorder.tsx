@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getAccessToken, recordingApi } from "@/lib/api";
+import { pcmRms, rmsToMeter, shouldWarnSilence, SILENCE_RMS } from "@/lib/audio-level";
 
 const SAMPLE_RATE = 16000;
 /** 3초 분량을 모아서 보낸다 (SPEC §2.1-8) */
@@ -22,6 +23,9 @@ interface RecorderHandles {
   /** 아직 3초를 못 채운 잔여 PCM 을 마저 보낸다 */
   flush: () => void;
 }
+
+/** 입력 레벨을 화면에 반영하는 주기. 워클릿 메시지마다 setState 하면 렌더가 과해진다. */
+const METER_INTERVAL_MS = 100;
 
 /** "10월 2일 수업" — 녹음 이름 기본값. 사용자가 매번 이름을 짓지 않아도 되게 한다. */
 function defaultTitle(): string {
@@ -45,10 +49,32 @@ export default function AudioRecorder({
   const [error, setError] = useState<string | null>(null);
   const handles = useRef<RecorderHandles | null>(null);
 
+  // 입력 레벨과 무음 지속 시간. 워클릿이 아주 자주 부르므로 ref 에 모아 두고
+  // 주기적으로만 화면에 반영한다.
+  const levelRef = useRef(0);
+  // 렌더 중에 Date.now() 를 부르면 안 되므로 0 으로 두고 녹음을 시작할 때 채운다
+  const lastSoundAtRef = useRef(0);
+  const [meter, setMeter] = useState(0);
+  const [silentForMs, setSilentForMs] = useState(0);
+
+  useEffect(() => {
+    if (!isRecording) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setMeter(rmsToMeter(levelRef.current));
+      setSilentForMs(Date.now() - lastSoundAtRef.current);
+    }, METER_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [isRecording]);
+
   const stop = useCallback(() => {
     const current = handles.current;
     handles.current = null;
     setIsRecording(false);
+    levelRef.current = 0;
+    setMeter(0);
+    setSilentForMs(0);
     if (!current) {
       return;
     }
@@ -108,7 +134,18 @@ export default function AudioRecorder({
         socket.send(merged.buffer);
       };
 
+      lastSoundAtRef.current = Date.now();
+      levelRef.current = 0;
+      setMeter(0);
+      setSilentForMs(0);
       worklet.port.onmessage = (event: MessageEvent<Int16Array>) => {
+        // 소리가 실제로 들어오는지 본다. 61분을 무음으로 녹음한 사고가 있었다 (audio-level 참고)
+        const rms = pcmRms(event.data);
+        levelRef.current = rms;
+        if (rms > SILENCE_RMS) {
+          lastSoundAtRef.current = Date.now();
+        }
+
         pending.push(event.data);
         pendingSamples += event.data.length;
         if (pendingSamples >= CHUNK_SAMPLES) {
@@ -131,6 +168,8 @@ export default function AudioRecorder({
     }
   }, [courseId, stop, onRecordingStarted]);
 
+  const silent = isRecording && shouldWarnSilence(silentForMs);
+
   return (
     <section className="flex items-center gap-3">
       <button
@@ -140,8 +179,32 @@ export default function AudioRecorder({
       >
         {isRecording ? "녹음 종료" : "녹음 시작"}
       </button>
-      <p className="max-w-lg truncate text-sm text-zinc-600" aria-live="polite">
-        {error ?? status ?? ""}
+
+      {isRecording && (
+        <div
+          className="flex items-center gap-2"
+          title="마이크 입력 레벨. 말할 때 막대가 움직여야 정상입니다."
+        >
+          <div className="h-2 w-24 overflow-hidden rounded bg-zinc-200">
+            <div
+              className={`h-full transition-[width] duration-100 ${
+                silent ? "bg-red-500" : "bg-emerald-500"
+              }`}
+              style={{ width: `${Math.round(meter * 100)}%` }}
+            />
+          </div>
+          <span className="text-xs text-zinc-400">입력</span>
+        </div>
+      )}
+
+      <p
+        className={`max-w-lg truncate text-sm ${silent ? "font-medium text-red-600" : "text-zinc-600"}`}
+        aria-live="polite"
+      >
+        {error ??
+          (silent
+            ? `마이크에서 소리가 들어오지 않습니다 (${Math.floor(silentForMs / 1000)}초). 입력 장치를 확인하세요.`
+            : (status ?? ""))}
       </p>
     </section>
   );
