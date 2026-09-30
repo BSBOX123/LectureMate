@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAccessToken, recordingApi } from "@/lib/api";
 import { pcmRms, rmsToMeter, shouldWarnSilence, SILENCE_RMS } from "@/lib/audio-level";
+import {
+  listMicrophones,
+  preferredMicrophone,
+  rememberedMicrophoneId,
+  rememberMicrophoneId,
+  type Microphone,
+} from "@/lib/audio-devices";
 
 const SAMPLE_RATE = 16000;
 /** 3초 분량을 모아서 보낸다 (SPEC §2.1-8) */
@@ -57,6 +64,29 @@ export default function AudioRecorder({
   const [meter, setMeter] = useState(0);
   const [silentForMs, setSilentForMs] = useState(0);
 
+  // 쓸 마이크. macOS 기본 입력과 별개로 Chrome 이 장치를 고르기 때문에 직접 지정해야 한다
+  // (지정하지 않으면 아이폰 연속성 마이크가 켜져 수업 중에 알림음이 울렸다)
+  const [microphones, setMicrophones] = useState<Microphone[]>([]);
+  const [microphoneId, setMicrophoneId] = useState<string | null>(null);
+
+  const loadMicrophones = useCallback(() => {
+    void listMicrophones().then((found) => {
+      setMicrophones(found);
+      setMicrophoneId((current) => {
+        const keep = current && found.some((device) => device.deviceId === current);
+        return keep ? current : (preferredMicrophone(found, rememberedMicrophoneId())?.deviceId ?? null);
+      });
+    });
+  }, []);
+
+  // 목록은 장치가 바뀔 때마다 갱신한다 (에어팟 연결, 아이폰 연결 등)
+  useEffect(() => {
+    loadMicrophones();
+    const devices = navigator.mediaDevices;
+    devices?.addEventListener?.("devicechange", loadMicrophones);
+    return () => devices?.removeEventListener?.("devicechange", loadMicrophones);
+  }, [loadMicrophones]);
+
   useEffect(() => {
     if (!isRecording) {
       return;
@@ -99,9 +129,18 @@ export default function AudioRecorder({
         throw new Error("로그인이 필요합니다.");
       }
 
+      // deviceId 를 주지 않으면 Chrome 이 자기 기준으로 고른다 (아이폰이 켜지는 원인).
+      // exact 로 지정하면 그 장치가 없을 때 조용히 다른 것을 쓰지 않고 오류가 난다.
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+          ...(microphoneId ? { deviceId: { exact: microphoneId } } : {}),
+        },
       });
+      // 권한을 처음 얻으면 그때부터 장치 이름이 보인다
+      loadMicrophones();
       const context = new AudioContext({ sampleRate: SAMPLE_RATE });
       await context.audioWorklet.addModule("/pcm-worklet.js");
 
@@ -164,9 +203,21 @@ export default function AudioRecorder({
         onRecordingStarted?.();
       };
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "녹음을 시작하지 못했습니다.");
+      const failed =
+        cause instanceof Error && cause.name === "OverconstrainedError"
+          ? "고른 마이크를 찾을 수 없습니다. 연결을 확인하고 다시 골라 주세요."
+          : cause instanceof Error
+            ? cause.message
+            : "녹음을 시작하지 못했습니다.";
+      setError(failed);
+      loadMicrophones();
     }
-  }, [courseId, stop, onRecordingStarted]);
+  }, [courseId, stop, onRecordingStarted, microphoneId, loadMicrophones]);
+
+  const chooseMicrophone = (deviceId: string) => {
+    setMicrophoneId(deviceId);
+    rememberMicrophoneId(deviceId);
+  };
 
   const silent = isRecording && shouldWarnSilence(silentForMs);
 
@@ -179,6 +230,22 @@ export default function AudioRecorder({
       >
         {isRecording ? "녹음 종료" : "녹음 시작"}
       </button>
+
+      {/* 녹음 중에는 장치를 바꿀 수 없다 (스트림을 다시 열어야 한다) */}
+      <select
+        className="max-w-44 rounded border px-2 py-1 text-xs text-zinc-700 disabled:opacity-50"
+        title="녹음에 쓸 마이크. macOS 기본 입력과 별개로 지정합니다."
+        value={microphoneId ?? ""}
+        disabled={isRecording || microphones.length === 0}
+        onChange={(event) => chooseMicrophone(event.target.value)}
+      >
+        {microphones.length === 0 && <option value="">마이크 없음</option>}
+        {microphones.map((device) => (
+          <option key={device.deviceId} value={device.deviceId}>
+            {device.label}
+          </option>
+        ))}
+      </select>
 
       {isRecording && (
         <div
